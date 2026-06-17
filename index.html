@@ -11150,15 +11150,27 @@ function updateHomeStats() {
   document.getElementById('home-date').textContent = now.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
   // Atualizar status de carregamento
   const jsStatus = document.getElementById('js-status');
-  if (jsStatus) { jsStatus.textContent = '✅ App pronto'; jsStatus.style.background = 'rgba(255,255,255,0.2)'; }
+  if (jsStatus) { jsStatus.textContent = '✅ v3.0 pronto'; jsStatus.style.background = 'rgba(255,255,255,0.2)'; }
 }
 
 // Inicializar ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
-  updateHomeStats();
-  const saved = Store.get('resp_nome');
-  if (saved) { const el = document.getElementById('resp-input'); if (el) el.value = saved; }
+  try {
+    updateHomeStats();
+    const saved = Store.get('resp_nome');
+    if (saved) { const el = document.getElementById('resp-input'); if (el) el.value = saved; }
+  } catch(e) {
+    const jsStatus = document.getElementById('js-status');
+    if (jsStatus) jsStatus.textContent = '❌ Erro: ' + e.message;
+  }
 });
+
+// Capturar erros globais e mostrar na tela
+window.onerror = function(msg, src, line) {
+  const jsStatus = document.getElementById('js-status');
+  if (jsStatus) jsStatus.textContent = '❌ ' + msg + ' (L' + line + ')';
+  return false;
+};
 
 // ===== CHECKLIST =====
 function startRonda(turn) {

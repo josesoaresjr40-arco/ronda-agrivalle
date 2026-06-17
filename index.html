@@ -12163,38 +12163,9 @@ function selecionarNome(n) {
   if (anterior && anterior !== n.toUpperCase()) {
     resetarTempoRonda();
   }
-  renderEscalaApp();
-
-  // Detectar turno da escala para este nome
-  const NOMES = getEscalaNomes();
-  const entrada = NOMES.find(p => p.nome === n);
-  const turnKey = entrada ? detectarTurnoKey(entrada.turno) : null;
-
-  if (turnKey) {
-    // Nome reconhecido na escala → iniciar ronda automaticamente após breve toast
-    const tNome = CHECKLIST_DATA[turnKey] ? CHECKLIST_DATA[turnKey].nome : 'Ronda';
-    showToast('👷 ' + n + ' · ' + tNome + ' — iniciando...');
-    setTimeout(() => startRonda(turnKey), 800);
-  } else {
-    // Nome não possui turno definido → mostrar modal para escolher
-    const modal = document.getElementById('modal-escolher-ronda');
-    if (!modal) { showToast('👷 Responsável: ' + n); return; }
-    const nomeLabel = document.getElementById('modal-ronda-nome');
-    if (nomeLabel) nomeLabel.textContent = 'Responsável: ' + n;
-    const opcoes = document.getElementById('modal-ronda-opcoes');
-    if (opcoes) {
-      opcoes.innerHTML = Object.entries(CHECKLIST_DATA).map(([k, td]) => `
-        <button onclick="confirmarRonda('${k}')" style="display:flex; align-items:center; gap:14px; padding:16px; background:#f0f4ff; border:2px solid #cbd5e1; border-radius:14px; font-size:15px; font-weight:700; color:#1e3a5f; cursor:pointer; width:100%; text-align:left;">
-          <span style="font-size:26px">${k === '1' ? '☀️' : '🌙'}</span>
-          <div>
-            <div>${td.nome}</div>
-            <div style="font-size:11px; font-weight:400; color:#6b7280; margin-top:2px;">${k === '1' ? '06:00 – 18:00' : '18:00 – 06:00'}</div>
-          </div>
-        </button>`).join('');
-    }
-    modal.style.display = 'flex';
-    showToast('👷 Responsável: ' + n + ' · Escolha o turno');
-  }
+  // Voltar para tela inicial para o usuário escolher o turno manualmente
+  showToast('👷 Responsável: ' + n + ' · Escolha o turno abaixo');
+  setTimeout(() => navTo('screen-home'), 400);
 }
 
 function respDigitado(v) {

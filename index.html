@@ -11069,6 +11069,33 @@ function setItemData(itemId, val, date) {
   saveData(date || todayKey(), d);
 }
 
+// ===== TOAST =====
+let _toastTimer = null;
+function showToast(msg, dur) {
+  const t = document.getElementById('toast');
+  if (!t) { console.log('[toast]', msg); return; }
+  t.textContent = msg;
+  t.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.classList.remove('show'); }, dur || 3000);
+}
+
+// ===== LIMPAR DIA =====
+function clearDayData() {
+  if (!confirm('Apagar todos os dados de hoje?')) return;
+  const date = todayKey();
+  Store.remove('ronda_' + date);
+  try {
+    ['1','2'].forEach(t => {
+      localStorage.removeItem('ronda_inicio_' + t + '_' + date);
+      localStorage.removeItem('ronda_fim_' + t + '_' + date);
+    });
+  } catch(e) {}
+  verifiedConjuntos.clear();
+  updateHomeStats();
+  showToast('🗑️ Dados de hoje apagados');
+}
+
 // ===== NAVEGAÇÃO =====
 function showScreen(id) {
   // Proteger tela de QR codes com senha
@@ -11499,6 +11526,11 @@ async function abrirCamera() {
     _showCamErr('📷 Câmera indisponível',
       'Erro: ' + (ultimoErr ? ultimoErr.message : 'desconhecido') + '. Toque em "Tentar novamente" ou continue sem QR.');
   }
+}
+
+function skipQR() {
+  pararCamera();
+  _semCamera();
 }
 
 function _semCamera() {

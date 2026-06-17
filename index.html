@@ -11174,8 +11174,11 @@ window.onerror = function(msg, src, line) {
 
 // ===== CHECKLIST =====
 function startRonda(turn) {
+  const _dbg = document.getElementById('js-status');
+  if (_dbg) _dbg.textContent = '🔄 iniciando turno ' + turn + '...';
   try {
   const resp = getResp();
+  if (_dbg) _dbg.textContent = '👤 resp=' + (resp || 'vazio') + ' turno=' + turn;
   if (!resp) {
     showToast('⚠️ Toque em "Responsável" e escolha seu nome antes de iniciar.');
     navTo('screen-escala');
@@ -11190,7 +11193,12 @@ function startRonda(turn) {
   respTag.style.display = '';
   renderChecklist(turn);
   showScreen('screen-checklist');
-  } catch(err) { showToast('Erro: ' + err.message); console.error(err); }
+  } catch(err) {
+    const _dbg2 = document.getElementById('js-status');
+    if (_dbg2) _dbg2.textContent = '❌ ERRO: ' + err.message;
+    showToast('Erro: ' + err.message);
+    console.error(err);
+  }
 }
 
 function renderChecklist(turn) {

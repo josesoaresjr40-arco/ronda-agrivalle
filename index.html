@@ -11121,7 +11121,17 @@ function updateHomeStats() {
   else badge.classList.add('hidden');
   const now = new Date();
   document.getElementById('home-date').textContent = now.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+  // Atualizar status de carregamento
+  const jsStatus = document.getElementById('js-status');
+  if (jsStatus) { jsStatus.textContent = '✅ App pronto'; jsStatus.style.background = 'rgba(255,255,255,0.2)'; }
 }
+
+// Inicializar ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+  updateHomeStats();
+  const saved = Store.get('resp_nome');
+  if (saved) { const el = document.getElementById('resp-input'); if (el) el.value = saved; }
+});
 
 // ===== CHECKLIST =====
 function startRonda(turn) {

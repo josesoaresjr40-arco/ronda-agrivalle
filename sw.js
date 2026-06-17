@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ronda-manutencao-v25';
+const CACHE_NAME = 'ronda-manutencao-v26';
 const ASSETS = [
   './index.html',
   './manifest.json'

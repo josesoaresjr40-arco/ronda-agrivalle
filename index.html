@@ -11138,8 +11138,8 @@ function startRonda(turn) {
   try {
   const resp = getResp();
   if (!resp) {
-    alert('⚠️ Digite seu nome no campo "Responsável" antes de iniciar a ronda.');
-    document.getElementById('resp-input').focus();
+    showToast('⚠️ Toque em "Responsável" e escolha seu nome antes de iniciar.');
+    navTo('screen-escala');
     return;
   }
   currentTurn = turn;
@@ -11151,7 +11151,7 @@ function startRonda(turn) {
   respTag.style.display = '';
   renderChecklist(turn);
   showScreen('screen-checklist');
-  } catch(err) { alert('Erro ao iniciar ronda: ' + err.message); }
+  } catch(err) { showToast('Erro: ' + err.message); console.error(err); }
 }
 
 function renderChecklist(turn) {

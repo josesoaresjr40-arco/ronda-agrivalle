@@ -10141,6 +10141,9 @@ function carregarQRCode() {
 }
 </script>
 <style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: rgba(0,0,0,0.1); }
+  [onclick], button, a, input, select, label { touch-action: manipulation; cursor: pointer; }
+
   :root {
     --primary: #5d7261;
     --primary-light: #fd592d;
@@ -10226,7 +10229,7 @@ function carregarQRCode() {
   .home-content { padding: 20px 16px; }
   .section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px; }
   .turn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
-  .turn-card { background: var(--card); border-radius: var(--radius); padding: 16px 8px; text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .turn-card { background: var(--card); border-radius: var(--radius); padding: 16px 8px; text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.08); font-family: inherit; font-size: inherit; width: 100%; display: block; }
   .turn-card:active { transform: scale(0.97); }
   .turn-card .turn-icon { font-size: 28px; margin-bottom: 6px; }
   .turn-card .turn-name { font-size: 13px; font-weight: 600; color: var(--text); }
@@ -10452,16 +10455,16 @@ function carregarQRCode() {
   <div class="home-content page-with-nav">
     <div class="section-title">Iniciar Ronda</div>
     <div class="turn-grid">
-      <div class="turn-card t1" onclick="startRonda('1')">
+      <button class="turn-card t1" onclick="startRonda('1')">
         <div class="turn-icon">☀️</div>
         <div class="turn-name">Turno Dia</div>
         <div class="turn-time">1º Turno</div>
-      </div>
-      <div class="turn-card t2" onclick="startRonda('2')">
+      </button>
+      <button class="turn-card t2" onclick="startRonda('2')">
         <div class="turn-icon">🌙</div>
         <div class="turn-name">Turno Noite</div>
         <div class="turn-time">2º Turno</div>
-      </div>
+      </button>
     </div>
     <div class="section-title">Ações Rápidas</div>
     <div class="action-row">

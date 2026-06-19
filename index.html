@@ -403,21 +403,25 @@ window.addEventListener('DOMContentLoaded', () => {
     <button class="header-back" onclick="cancelQR()">← Cancelar</button>
     <div class="header-title">📷 Escanear QR Code</div>
   </div>
-  <div style="position:relative; background:#000; min-height: calc(100vh - 56px);">
-    <video id="qr-video" autoplay playsinline muted style="width:100%; height:calc(100vh - 56px); object-fit:cover; display:block;"></video>
-    <div class="scanner-frame"><div class="scanner-line"></div></div>
-    <!-- Info do equipamento esperado -->
-    <div id="qr-equip-info" style="display:none; position:absolute; top:16px; left:16px; right:16px; background:rgba(30,58,95,0.92); color:white; border-radius:12px; padding:12px 14px;">
-      <div style="font-size:11px; opacity:0.7; margin-bottom:2px;">EQUIPAMENTO ESPERADO</div>
-      <div id="qr-equip-name" style="font-size:15px; font-weight:700;"></div>
-      <div id="qr-equip-id" style="font-size:11px; opacity:0.6; margin-top:2px;"></div>
-    </div>
-    <div class="scanner-hint" id="qr-hint-text">Aponte para o QR code da seção</div>
-    <div id="scan-status" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:6px 14px;border-radius:20px;font-size:13px;display:none;">🔍 Escaneando...</div>
-    <div id="scan-debug" style="position:absolute;top:60px;left:8px;right:8px;background:rgba(0,0,0,0.75);color:#0f0;font-size:11px;font-family:monospace;padding:8px;border-radius:8px;display:none;line-height:1.6;"></div>
-    <button onclick="toggleDebugScan()" style="position:absolute;top:8px;right:8px;background:rgba(255,255,0,0.3);border:1px solid yellow;color:yellow;padding:4px 8px;border-radius:6px;font-size:11px;">DEBUG</button>
-    <!-- Botão ignorar QR (caso etiqueta danificada) -->
-    <button id="qr-skip-btn" style="display:none; position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.4); border-radius:20px; padding:10px 22px; font-size:13px; cursor:pointer;" onclick="skipQR()">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 56px);background:#0f1f2e;padding:32px 24px;gap:24px;">
+    <!-- Nome da seção esperada -->
+    <div id="qr-secao-nome" style="color:#fff;font-size:18px;font-weight:700;text-align:center;"></div>
+    <!-- Ícone grande -->
+    <div style="font-size:80px;line-height:1;">📷</div>
+    <!-- Instrução -->
+    <p style="color:#8ab4c8;font-size:15px;text-align:center;margin:0;">
+      Aponte a câmera para o QR code<br>fixado no equipamento e fotografe
+    </p>
+    <!-- Botão principal — abre câmera nativa -->
+    <input type="file" id="qr-file-input" accept="image/*" capture="environment" style="display:none" onchange="processarFotoQR(this)">
+    <button onclick="document.getElementById('qr-file-input').click()"
+      style="background:#1a5e3a;color:#fff;border:none;border-radius:16px;padding:18px 40px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(26,94,58,0.5);width:100%;max-width:320px;">
+      📷 Fotografar QR Code
+    </button>
+    <!-- Status de leitura -->
+    <div id="qr-read-status" style="color:#4ade80;font-size:14px;text-align:center;min-height:20px;"></div>
+    <!-- Botão QR danificado -->
+    <button onclick="skipQR()" style="background:transparent;color:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:10px 24px;font-size:13px;cursor:pointer;margin-top:8px;">
       ⚠️ QR danificado — continuar sem escanear
     </button>
     <canvas id="qr-canvas" style="display:none"></canvas>
@@ -445,41 +449,24 @@ window.addEventListener('DOMContentLoaded', () => {
 <div id="screen-export" class="screen">
   <div class="header">
     <button class="header-back" onclick="showScreen('screen-home')">←</button>
-    <div class="header-title">Exportar Relatório</div>
+    <div class="header-title">Relatório</div>
   </div>
-  <div class="export-content page-with-nav">
-    <div class="date-selector" style="margin-bottom:16px; border-radius: var(--radius); border: 1px solid var(--border);">
-      <label>Data:</label>
-      <input type="date" id="export-date">
-    </div>
-    <div class="export-card" onclick="definirPastaRelatorios()">
-      <div class="export-icon">📁</div>
+  <div class="export-content page-with-nav" style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+    <div class="export-card" onclick="showScreen('screen-qrcodes')" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">🔲</div>
       <div class="export-info">
-        <div class="export-title">Pasta de salvamento</div>
-        <div class="export-sub" id="pasta-status">Toque para escolher a pasta onde os relatórios serão salvos</div>
-      </div>
-    </div>
-    <div class="export-card" onclick="exportExcel()">
-      <div class="export-icon">📊</div>
-      <div class="export-info">
-        <div class="export-title">Exportar para Excel</div>
-        <div class="export-sub">Relatório completo com todos os turnos e itens verificados</div>
-      </div>
-    </div>
-    <div class="export-card" onclick="exportPendencias()">
-      <div class="export-icon">⚠️</div>
-      <div class="export-info">
-        <div class="export-title">Relatório de Pendências</div>
-        <div class="export-sub">Somente itens com NOK / anomalias registradas</div>
-      </div>
-    </div>
-    <div class="export-card" onclick="showScreen('screen-qrcodes')">
-      <div class="export-icon">🔲</div>
-      <div class="export-info">
-        <div class="export-title">Imprimir QR Codes</div>
+        <div class="export-title" style="font-size:17px;">Imprimir QR Codes</div>
         <div class="export-sub">Gerar etiquetas QR para colar nos equipamentos</div>
       </div>
     </div>
+    <div class="export-card" onclick="enviarRelatorioCompleto()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📧</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Enviar Relatório por Email</div>
+        <div class="export-sub">Relatório completo com tempos, pendências e itens verificados</div>
+      </div>
+    </div>
+    <input type="date" id="export-date" style="display:none">
   </div>
 </div>
 
@@ -1089,58 +1076,15 @@ function toggleConjunto(cId) {
   const card = document.getElementById('conjunto-' + cId);
   if (!secaoLiberada(cId)) {
     conjEsperado = cId;
-    abrirListaSecoes(cId);
+    let conjNome = cId;
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.id === cId) { conjNome = (c.icon ? c.icon + ' ' : '') + c.nome; break; }
+    showToast('📷 Escaneie o QR de: ' + conjNome);
+    abrirCamera();
     return;
   }
   card.classList.toggle('open');
-}
-
-function abrirListaSecoes(conjEsperadoId) {
-  const tData = CHECKLIST_DATA[currentTurn];
-  const data = loadData(todayKey());
-  let html = '';
-  for (const c of tData.conjuntos) {
-    const total = c.itens.length;
-    const feitos = c.itens.filter(i => data[i.id]?.status).length;
-    const liberada = secaoLiberada(c.id);
-    const isAlvo = c.id === conjEsperadoId;
-    const cor = isAlvo ? '#1a5e3a' : (liberada ? '#2d7d46' : '#1a2e4a');
-    const badge = liberada ? ' ✓' : '';
-    html += `<button onclick="confirmarSecao('${c.id}')" style="
-      display:flex;align-items:center;gap:12px;padding:14px 16px;
-      background:${isAlvo ? '#e8f5e9' : '#f5f7fa'};
-      border:2px solid ${isAlvo ? '#1a5e3a' : '#dde3ea'};
-      border-radius:12px;cursor:pointer;text-align:left;width:100%;
-      ${isAlvo ? 'box-shadow:0 2px 8px rgba(26,94,58,0.2);' : ''}
-    ">
-      <span style="font-size:22px">${c.icon || '📍'}</span>
-      <div style="flex:1">
-        <div style="font-size:15px;font-weight:700;color:${cor}">${c.nome}${badge}</div>
-        <div style="font-size:12px;color:#888;margin-top:2px">${feitos}/${total} itens${isAlvo ? ' · <b style="color:#1a5e3a">← Você está aqui</b>' : ''}</div>
-      </div>
-    </button>`;
-  }
-  document.getElementById('lista-secoes').innerHTML = html;
-  document.getElementById('modal-secoes').classList.add('active');
-}
-
-function confirmarSecao(cId) {
-  closeModal('modal-secoes');
-  if (conjEsperado && cId !== conjEsperado) {
-    let nomeEsp = conjEsperado;
-    for (const td of Object.values(CHECKLIST_DATA))
-      for (const c of td.conjuntos)
-        if (c.id === conjEsperado) { nomeEsp = c.nome; break; }
-    showToast('❌ Selecione a seção correta: ' + nomeEsp);
-    setTimeout(() => abrirListaSecoes(conjEsperado), 1500);
-    return;
-  }
-  conjEsperado = null;
-  liberarSecao(cId);
-  if (navigator.vibrate) navigator.vibrate(80);
-  const card = document.getElementById('conjunto-' + cId);
-  if (card && !card.classList.contains('open')) card.classList.add('open');
-  showToast('✅ Seção liberada!');
 }
 
 // quickStatus removido — acesso apenas por QR scan
@@ -1371,46 +1315,64 @@ function skipQR() {
   setTimeout(() => abrirModalEquipamentos(), 200);
 }
 
-async function abrirCamera() {
-  // Verificar se câmera está disponível
-  const temCamera = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if (!temCamera) {
-    abrirModalEquipamentos();
-    return;
-  }
-
-  // Mostrar tela do scanner
+function abrirCamera() {
+  // Mostrar tela do scanner (foto)
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-qr-scan').classList.add('active');
   document.getElementById('bottom-nav').style.display = 'none';
 
-  const video = document.getElementById('qr-video');
+  // Mostrar nome da seção esperada
+  let nome = '';
+  if (conjEsperado) {
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.id === conjEsperado) { nome = (c.icon ? c.icon + ' ' : '') + c.nome; break; }
+  }
+  const nomeEl = document.getElementById('qr-secao-nome');
+  if (nomeEl) nomeEl.textContent = nome ? 'Seção: ' + nome : '';
+  const statusEl = document.getElementById('qr-read-status');
+  if (statusEl) statusEl.textContent = '';
+  // Limpar input anterior
+  const inp = document.getElementById('qr-file-input');
+  if (inp) inp.value = '';
+}
+
+async function processarFotoQR(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('qr-read-status');
+  if (statusEl) statusEl.textContent = '🔍 Lendo QR...';
+
   try {
-    // Câmera traseira em alta resolução (ideal = sem bloqueio em nenhum dispositivo)
-    qrStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    // Desativa torch/flash explicitamente (Android ativa automaticamente em alguns dispositivos)
-    try {
-      const track = qrStream.getVideoTracks()[0];
-      if (track && track.getCapabilities) {
-        const caps = track.getCapabilities();
-        if (caps.torch) await track.applyConstraints({ advanced: [{ torch: false }] });
+    // Método 1: BarcodeDetector nativo (Android Chrome)
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const img = await createImageBitmap(file);
+      const codes = await detector.detect(img);
+      if (codes.length > 0) {
+        processarQR(codes[0].rawValue);
+        return;
       }
-    } catch(e) {}
-    video.srcObject = qrStream;
-    await video.play();
-    lerQRFrame();
-    // Mostrar botão "QR danificado" após 8s
-    setTimeout(() => {
-      const btn = document.getElementById('qr-skip-btn');
-      if (btn && qrStream) btn.style.display = 'block';
-    }, 8000);
-  } catch(err) {
-    // Câmera bloqueada ou indisponível → fallback para lista
-    showScreen(qrReturnScreen || 'screen-checklist');
-    if (equipEsperado) { equipEsperado = null; showToast('📷 Câmera indisponível.'); return; }
-    setTimeout(() => abrirModalEquipamentos(), 200);
+    }
+    // Método 2: jsQR via canvas
+    if (typeof jsQR !== 'undefined') {
+      const img = await createImageBitmap(file);
+      const canvas = document.getElementById('qr-canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, img.width, img.height);
+      const code = jsQR(imgData.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+      if (code) { processarQR(code.data); return; }
+    }
+    // Nenhum método funcionou
+    if (statusEl) statusEl.textContent = '❌ QR não reconhecido. Tente novamente mais perto.';
+    const inp = document.getElementById('qr-file-input');
+    if (inp) inp.value = '';
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ Erro ao ler imagem. Tente novamente.';
+    const inp = document.getElementById('qr-file-input');
+    if (inp) inp.value = '';
   }
 }
 
@@ -1463,125 +1425,11 @@ function iniciarScanItem(itemId) {
   openDetail(itemId);
 }
 
-// ===== SCANNER QR — BarcodeDetector (nativo) + jsQR (fallback) =====
-let _ccCrop = null;
-let _lastScanTime = 0;
-let _scanStatusTimer = null;
-let _barcodeDetector = null;
-
-// Inicializa BarcodeDetector nativo (Android Chrome 83+, muito mais rápido)
-if ('BarcodeDetector' in window) {
-  try { _barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
-}
-
-let _debugMode = false;
-function toggleDebugScan() {
-  _debugMode = !_debugMode;
-  const d = document.getElementById('scan-debug');
-  if (d) d.style.display = _debugMode ? 'block' : 'none';
-}
-
-async function lerQRFrame() {
-  const video = document.getElementById('qr-video');
-  if (!qrStream || !video) return;
-
-  // Mostrar indicador de scan ativo
-  const statusEl = document.getElementById('scan-status');
-  if (statusEl && statusEl.style.display === 'none') {
-    statusEl.style.display = 'block';
-    if (_scanStatusTimer) clearInterval(_scanStatusTimer);
-    _scanStatusTimer = setInterval(() => {
-      if (statusEl) statusEl.style.opacity = statusEl.style.opacity === '0' ? '1' : '0';
-    }, 500);
-  }
-
-  // Throttle: a cada 200ms
-  const now = Date.now();
-  if (now - _lastScanTime < 200) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
-  _lastScanTime = now;
-
-  if (video.readyState >= 2 && video.videoWidth > 0) {
-    const vw = video.videoWidth, vh = video.videoHeight;
-    const dbg = document.getElementById('scan-debug');
-
-    // ── MÉTODO 1: BarcodeDetector nativo (mais confiável no Android) ──
-    if (_barcodeDetector) {
-      try {
-        const codes = await _barcodeDetector.detect(video);
-        if (_debugMode && dbg) dbg.innerHTML = `Método: BarcodeDetector<br>Câmera: ${vw}x${vh}<br>QRs encontrados: ${codes.length}<br>Estado vídeo: ${video.readyState}<br>${codes.length ? 'Valor: '+codes[0].rawValue : 'Nenhum QR detectado'}`;
-        if (codes.length > 0) {
-          pararCamera();
-          processarQR(codes[0].rawValue);
-          return;
-        }
-      } catch(e) {
-        if (_debugMode && dbg) dbg.innerHTML = `BarcodeDetector ERRO: ${e.message}<br>Câmera: ${vw}x${vh}`;
-        _barcodeDetector = null;
-      }
-    }
-
-    // ── MÉTODO 2: jsQR via canvas (fallback) ──
-    if (typeof jsQR !== 'undefined') {
-      const canvas = document.getElementById('qr-canvas');
-      const vw = video.videoWidth, vh = video.videoHeight;
-      canvas.width = vw; canvas.height = vh;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, vw, vh);
-
-      // Tentativa A: frame completo
-      let imgData = ctx.getImageData(0, 0, vw, vh);
-      let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
-      if (_debugMode && dbg) dbg.innerHTML = `Método: jsQR<br>Câmera: ${vw}x${vh}<br>Estado: ${video.readyState}<br>Pass A: ${code ? 'LIDO: '+code.data : 'nada'}`;
-
-      // Tentativa B: crop central 65% → 512px
-      if (!code) {
-        if (!_ccCrop) { _ccCrop = document.createElement('canvas'); _ccCrop.width = 512; _ccCrop.height = 512; }
-        const cs = Math.min(vw, vh) * 0.65;
-        const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
-        const cCtx = _ccCrop.getContext('2d');
-        cCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
-        imgData = cCtx.getImageData(0, 0, 512, 512);
-        code = jsQR(imgData.data, 512, 512, { inversionAttempts: 'attemptBoth' });
-      }
-
-      // Tentativa C: binarização P&B
-      if (!code) {
-        if (!_ccCrop) { _ccCrop = document.createElement('canvas'); _ccCrop.width = 512; _ccCrop.height = 512; }
-        const cs = Math.min(vw, vh) * 0.65;
-        const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
-        const cCtx = _ccCrop.getContext('2d');
-        cCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
-        const id = cCtx.getImageData(0, 0, 512, 512);
-        const d = id.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const gray = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
-          const bw = gray > 128 ? 255 : 0;
-          d[i] = d[i+1] = d[i+2] = bw;
-        }
-        cCtx.putImageData(id, 0, 0);
-        const id2 = cCtx.getImageData(0, 0, 512, 512);
-          code = jsQR(id2.data, 512, 512, { inversionAttempts: 'attemptBoth' });
-      }
-
-      if (_debugMode && dbg && !code) dbg.innerHTML += '<br>Pass B+C: nada';
-      if (code) {
-        pararCamera();
-        processarQR(code.data);
-        return;
-      }
-    }
-  }
-  qrAnimFrame = requestAnimationFrame(lerQRFrame);
-}
+// Scanner QR via foto (processarFotoQR)
 
 function pararCamera() {
   if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
   if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
-  if (_scanStatusTimer) { clearInterval(_scanStatusTimer); _scanStatusTimer = null; }
-  const statusEl = document.getElementById('scan-status');
-  if (statusEl) { statusEl.style.display = 'none'; statusEl.style.opacity = '1'; }
-  const btn = document.getElementById('qr-skip-btn');
-  if (btn) btn.style.display = 'none';
 }
 
 function processarQR(data) {
@@ -1907,6 +1755,77 @@ async function verificarEnvioAutomatico() {
   }
   // Sem ENVIO_AUTO_URL → abre e-mail completo automaticamente
   setTimeout(() => enviarEmailCompleto(date, currentTurn, true), 1800);
+}
+
+function enviarRelatorioCompleto() {
+  const date = todayKey();
+  const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+  const resp = getResp() || 'Não informado';
+  let linhas = [];
+  linhas.push('RELATORIO COMPLETO - RONDA DE MANUTENCAO AGRIVALLE');
+  linhas.push('====================================================');
+  linhas.push('Data: ' + dataFmt);
+  linhas.push('Responsavel: ' + resp);
+  linhas.push('');
+
+  for (const turnKey of ['1', '2']) {
+    const td = CHECKLIST_DATA[turnKey];
+    if (!td) continue;
+    const data = loadData(date);
+    const inicio = horaRonda('inicio', turnKey, date);
+    const fim = horaRonda('fim', turnKey, date);
+    const durTxt = duracaoRonda(turnKey, date);
+    let totalOK = 0, totalNOK = 0, totalTotal = 0;
+    const noks = [];
+
+    linhas.push('====================================================');
+    linhas.push('TURNO: ' + td.nome.toUpperCase());
+    if (inicio) linhas.push('Inicio: ' + inicio);
+    if (fim) linhas.push('Fim: ' + fim);
+    if (durTxt) linhas.push('Duracao: ' + durTxt);
+    linhas.push('');
+
+    for (const c of td.conjuntos) {
+      let secOK = 0, secNOK = 0;
+      for (const item of c.itens) {
+        totalTotal++;
+        const d = data[item.id];
+        if (d?.status === 'ok') { totalOK++; secOK++; }
+        else if (d?.status === 'nok') {
+          totalNOK++; secNOK++;
+          noks.push({ item, val: d, conjNome: c.nome });
+        }
+      }
+      const allOK = secOK === c.itens.length && secNOK === 0;
+      linhas.push((allOK ? '[OK]  ' : secNOK > 0 ? '[NOK] ' : '[---] ') + c.nome + ' (' + secOK + '/' + c.itens.length + (secNOK ? ', ' + secNOK + ' NOK' : '') + ')');
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.status === 'nok') {
+          linhas.push('   X ' + item.comp + (d.motivo ? ' -> ' + d.motivo : ''));
+          if (d.obs) linhas.push('     Obs: ' + d.obs);
+        }
+      }
+    }
+    linhas.push('');
+    linhas.push('RESUMO ' + td.nome.toUpperCase() + ': ' + totalOK + ' OK | ' + totalNOK + ' NOK | ' + totalTotal + ' total');
+    if (noks.length > 0) {
+      linhas.push('');
+      linhas.push('PENDENCIAS NOK:');
+      noks.forEach((n, i) => {
+        linhas.push((i + 1) + '. [' + n.conjNome + '] ' + n.item.comp);
+        if (n.val.motivo) linhas.push('   Motivo: ' + n.val.motivo);
+        if (n.val.obs) linhas.push('   Obs: ' + n.val.obs);
+      });
+    }
+    linhas.push('');
+  }
+
+  linhas.push('====================================================');
+  linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
+  const corpo = linhas.join('\n');
+  const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  mostrarModalRelatorio(assunto, corpo, mailto, false);
 }
 
 function enviarEmailCompleto(date, turnKey, autoAbrir) {

@@ -1333,7 +1333,14 @@ async function abrirCamera() {
     qrStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
     });
-    // Torch desativado — causa superexposição que dificulta leitura do QR
+    // Desativa torch/flash explicitamente (Android ativa automaticamente em alguns dispositivos)
+    try {
+      const track = qrStream.getVideoTracks()[0];
+      if (track && track.getCapabilities) {
+        const caps = track.getCapabilities();
+        if (caps.torch) await track.applyConstraints({ advanced: [{ torch: false }] });
+      }
+    } catch(e) {}
     video.srcObject = qrStream;
     await video.play();
     lerQRFrame();

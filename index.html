@@ -413,6 +413,7 @@ window.addEventListener('DOMContentLoaded', () => {
       <div id="qr-equip-id" style="font-size:11px; opacity:0.6; margin-top:2px;"></div>
     </div>
     <div class="scanner-hint" id="qr-hint-text">Aponte para o QR code da seção</div>
+    <div id="scan-status" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:6px 14px;border-radius:20px;font-size:13px;display:none;">🔍 Escaneando...</div>
     <!-- Botão ignorar QR (caso etiqueta danificada) -->
     <button id="qr-skip-btn" style="display:none; position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.4); border-radius:20px; padding:10px 22px; font-size:13px; cursor:pointer;" onclick="skipQR()">
       ⚠️ QR danificado — continuar sem escanear
@@ -1409,16 +1410,26 @@ function iniciarScanItem(itemId) {
 // Canvas permanente para evitar alocação a cada frame
 let _ccCrop = null;
 let _lastScanTime = 0;
+let _scanStatusTimer = null;
 function lerQRFrame() {
   if (typeof jsQR === 'undefined') { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
   const video = document.getElementById('qr-video');
   const canvas = document.getElementById('qr-canvas');
   if (!qrStream) return;
+  // Mostrar indicador de scan ativo
+  const statusEl = document.getElementById('scan-status');
+  if (statusEl && statusEl.style.display === 'none') {
+    statusEl.style.display = 'block';
+    if (_scanStatusTimer) clearInterval(_scanStatusTimer);
+    _scanStatusTimer = setInterval(() => {
+      if (statusEl) statusEl.style.opacity = statusEl.style.opacity === '0' ? '1' : '0';
+    }, 500);
+  }
   // Throttle: só processa a cada 150ms para não sobrecarregar CPU
   const now = Date.now();
   if (now - _lastScanTime < 150) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
   _lastScanTime = now;
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+  if (video.readyState >= 2 && video.videoWidth > 0) {
     const vw = video.videoWidth, vh = video.videoHeight;
     canvas.width = vw; canvas.height = vh;
     const ctx = canvas.getContext('2d');
@@ -1471,6 +1482,9 @@ function lerQRFrame() {
 function pararCamera() {
   if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
   if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
+  if (_scanStatusTimer) { clearInterval(_scanStatusTimer); _scanStatusTimer = null; }
+  const statusEl = document.getElementById('scan-status');
+  if (statusEl) { statusEl.style.display = 'none'; statusEl.style.opacity = '1'; }
   const btn = document.getElementById('qr-skip-btn');
   if (btn) btn.style.display = 'none';
 }

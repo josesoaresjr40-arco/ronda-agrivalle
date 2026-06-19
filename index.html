@@ -414,6 +414,8 @@ window.addEventListener('DOMContentLoaded', () => {
     </div>
     <div class="scanner-hint" id="qr-hint-text">Aponte para o QR code da seção</div>
     <div id="scan-status" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:6px 14px;border-radius:20px;font-size:13px;display:none;">🔍 Escaneando...</div>
+    <div id="scan-debug" style="position:absolute;top:60px;left:8px;right:8px;background:rgba(0,0,0,0.75);color:#0f0;font-size:11px;font-family:monospace;padding:8px;border-radius:8px;display:none;line-height:1.6;"></div>
+    <button onclick="toggleDebugScan()" style="position:absolute;top:8px;right:8px;background:rgba(255,255,0,0.3);border:1px solid yellow;color:yellow;padding:4px 8px;border-radius:6px;font-size:11px;">DEBUG</button>
     <!-- Botão ignorar QR (caso etiqueta danificada) -->
     <button id="qr-skip-btn" style="display:none; position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.4); border-radius:20px; padding:10px 22px; font-size:13px; cursor:pointer;" onclick="skipQR()">
       ⚠️ QR danificado — continuar sem escanear
@@ -560,6 +562,20 @@ window.addEventListener('DOMContentLoaded', () => {
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Câmera indisponível. Busque e selecione o equipamento:</p>
       <input type="search" id="equip-search" class="equip-search" placeholder="🔍 Buscar equipamento..." oninput="filtrarEquipamentos()" autocomplete="off">
       <div class="equip-list" id="equip-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR SEÇÃO -->
+<div class="modal-overlay" id="modal-secoes">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>📋 Confirmar Local</h3>
+      <button class="modal-close" onclick="closeModal('modal-secoes')">×</button>
+    </div>
+    <div class="modal-body" style="padding:12px 16px 16px">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Selecione a seção onde você está agora:</p>
+      <div id="lista-secoes" style="max-height:65vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
 </div>
@@ -1072,19 +1088,59 @@ function renderItemRow(item, saved) {
 function toggleConjunto(cId) {
   const card = document.getElementById('conjunto-' + cId);
   if (!secaoLiberada(cId)) {
-    // Pedir QR para liberar a seção antes de abrir
     conjEsperado = cId;
-    pendingItemId = null;
-    qrReturnScreen = 'screen-checklist';
-    let conjNome = cId;
-    for (const td of Object.values(CHECKLIST_DATA))
-      for (const c of td.conjuntos)
-        if (c.id === cId) { conjNome = (c.icon ? c.icon + ' ' : '') + c.nome; break; }
-    showToast('📷 Escaneie o QR de: ' + conjNome);
-    abrirCamera();
+    abrirListaSecoes(cId);
     return;
   }
   card.classList.toggle('open');
+}
+
+function abrirListaSecoes(conjEsperadoId) {
+  const tData = CHECKLIST_DATA[currentTurn];
+  const data = loadData(todayKey());
+  let html = '';
+  for (const c of tData.conjuntos) {
+    const total = c.itens.length;
+    const feitos = c.itens.filter(i => data[i.id]?.status).length;
+    const liberada = secaoLiberada(c.id);
+    const isAlvo = c.id === conjEsperadoId;
+    const cor = isAlvo ? '#1a5e3a' : (liberada ? '#2d7d46' : '#1a2e4a');
+    const badge = liberada ? ' ✓' : '';
+    html += `<button onclick="confirmarSecao('${c.id}')" style="
+      display:flex;align-items:center;gap:12px;padding:14px 16px;
+      background:${isAlvo ? '#e8f5e9' : '#f5f7fa'};
+      border:2px solid ${isAlvo ? '#1a5e3a' : '#dde3ea'};
+      border-radius:12px;cursor:pointer;text-align:left;width:100%;
+      ${isAlvo ? 'box-shadow:0 2px 8px rgba(26,94,58,0.2);' : ''}
+    ">
+      <span style="font-size:22px">${c.icon || '📍'}</span>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:${cor}">${c.nome}${badge}</div>
+        <div style="font-size:12px;color:#888;margin-top:2px">${feitos}/${total} itens${isAlvo ? ' · <b style="color:#1a5e3a">← Você está aqui</b>' : ''}</div>
+      </div>
+    </button>`;
+  }
+  document.getElementById('lista-secoes').innerHTML = html;
+  document.getElementById('modal-secoes').classList.add('active');
+}
+
+function confirmarSecao(cId) {
+  closeModal('modal-secoes');
+  if (conjEsperado && cId !== conjEsperado) {
+    let nomeEsp = conjEsperado;
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.id === conjEsperado) { nomeEsp = c.nome; break; }
+    showToast('❌ Selecione a seção correta: ' + nomeEsp);
+    setTimeout(() => abrirListaSecoes(conjEsperado), 1500);
+    return;
+  }
+  conjEsperado = null;
+  liberarSecao(cId);
+  if (navigator.vibrate) navigator.vibrate(80);
+  const card = document.getElementById('conjunto-' + cId);
+  if (card && !card.classList.contains('open')) card.classList.add('open');
+  showToast('✅ Seção liberada!');
 }
 
 // quickStatus removido — acesso apenas por QR scan
@@ -1418,6 +1474,13 @@ if ('BarcodeDetector' in window) {
   try { _barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
 }
 
+let _debugMode = false;
+function toggleDebugScan() {
+  _debugMode = !_debugMode;
+  const d = document.getElementById('scan-debug');
+  if (d) d.style.display = _debugMode ? 'block' : 'none';
+}
+
 async function lerQRFrame() {
   const video = document.getElementById('qr-video');
   if (!qrStream || !video) return;
@@ -1438,16 +1501,23 @@ async function lerQRFrame() {
   _lastScanTime = now;
 
   if (video.readyState >= 2 && video.videoWidth > 0) {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const dbg = document.getElementById('scan-debug');
+
     // ── MÉTODO 1: BarcodeDetector nativo (mais confiável no Android) ──
     if (_barcodeDetector) {
       try {
         const codes = await _barcodeDetector.detect(video);
+        if (_debugMode && dbg) dbg.innerHTML = `Método: BarcodeDetector<br>Câmera: ${vw}x${vh}<br>QRs encontrados: ${codes.length}<br>Estado vídeo: ${video.readyState}<br>${codes.length ? 'Valor: '+codes[0].rawValue : 'Nenhum QR detectado'}`;
         if (codes.length > 0) {
           pararCamera();
           processarQR(codes[0].rawValue);
           return;
         }
-      } catch(e) { _barcodeDetector = null; } // fallback se falhar
+      } catch(e) {
+        if (_debugMode && dbg) dbg.innerHTML = `BarcodeDetector ERRO: ${e.message}<br>Câmera: ${vw}x${vh}`;
+        _barcodeDetector = null;
+      }
     }
 
     // ── MÉTODO 2: jsQR via canvas (fallback) ──
@@ -1461,6 +1531,7 @@ async function lerQRFrame() {
       // Tentativa A: frame completo
       let imgData = ctx.getImageData(0, 0, vw, vh);
       let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
+      if (_debugMode && dbg) dbg.innerHTML = `Método: jsQR<br>Câmera: ${vw}x${vh}<br>Estado: ${video.readyState}<br>Pass A: ${code ? 'LIDO: '+code.data : 'nada'}`;
 
       // Tentativa B: crop central 65% → 512px
       if (!code) {
@@ -1492,6 +1563,7 @@ async function lerQRFrame() {
           code = jsQR(id2.data, 512, 512, { inversionAttempts: 'attemptBoth' });
       }
 
+      if (_debugMode && dbg && !code) dbg.innerHTML += '<br>Pass B+C: nada';
       if (code) {
         pararCamera();
         processarQR(code.data);

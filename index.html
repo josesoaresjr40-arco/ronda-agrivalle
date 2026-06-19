@@ -1407,15 +1407,21 @@ function iniciarScanItem(itemId) {
   openDetail(itemId);
 }
 
-// Canvas permanente para evitar alocação a cada frame
+// ===== SCANNER QR — BarcodeDetector (nativo) + jsQR (fallback) =====
 let _ccCrop = null;
 let _lastScanTime = 0;
 let _scanStatusTimer = null;
-function lerQRFrame() {
-  if (typeof jsQR === 'undefined') { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
+let _barcodeDetector = null;
+
+// Inicializa BarcodeDetector nativo (Android Chrome 83+, muito mais rápido)
+if ('BarcodeDetector' in window) {
+  try { _barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
+}
+
+async function lerQRFrame() {
   const video = document.getElementById('qr-video');
-  const canvas = document.getElementById('qr-canvas');
-  if (!qrStream) return;
+  if (!qrStream || !video) return;
+
   // Mostrar indicador de scan ativo
   const statusEl = document.getElementById('scan-status');
   if (statusEl && statusEl.style.display === 'none') {
@@ -1425,55 +1431,72 @@ function lerQRFrame() {
       if (statusEl) statusEl.style.opacity = statusEl.style.opacity === '0' ? '1' : '0';
     }, 500);
   }
-  // Throttle: só processa a cada 150ms para não sobrecarregar CPU
+
+  // Throttle: a cada 200ms
   const now = Date.now();
-  if (now - _lastScanTime < 150) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
+  if (now - _lastScanTime < 200) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
   _lastScanTime = now;
+
   if (video.readyState >= 2 && video.videoWidth > 0) {
-    const vw = video.videoWidth, vh = video.videoHeight;
-    canvas.width = vw; canvas.height = vh;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, vw, vh);
-
-    // Tentativa 1: frame completo nativo
-    let imgData = ctx.getImageData(0, 0, vw, vh);
-    let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
-
-    // Tentativa 2: crop central 65% upscalado para 512px
-    if (!code) {
-      if (!_ccCrop) { _ccCrop = document.createElement('canvas'); _ccCrop.width = 512; _ccCrop.height = 512; }
-      const cs = Math.min(vw, vh) * 0.65;
-      const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
-      const cCtx = _ccCrop.getContext('2d');
-      cCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
-      imgData = cCtx.getImageData(0, 0, 512, 512);
-      code = jsQR(imgData.data, 512, 512, { inversionAttempts: 'attemptBoth' });
+    // ── MÉTODO 1: BarcodeDetector nativo (mais confiável no Android) ──
+    if (_barcodeDetector) {
+      try {
+        const codes = await _barcodeDetector.detect(video);
+        if (codes.length > 0) {
+          pararCamera();
+          processarQR(codes[0].rawValue);
+          return;
+        }
+      } catch(e) { _barcodeDetector = null; } // fallback se falhar
     }
 
-    // Tentativa 3: crop central com alto contraste (binarização)
-    if (!code) {
-      if (!_ccCrop) { _ccCrop = document.createElement('canvas'); _ccCrop.width = 512; _ccCrop.height = 512; }
-      const cs = Math.min(vw, vh) * 0.65;
-      const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
-      const cCtx = _ccCrop.getContext('2d');
-      cCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
-      const id = cCtx.getImageData(0, 0, 512, 512);
-      const d = id.data;
-      // Converter para P&B de alto contraste
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
-        const bw = gray > 128 ? 255 : 0;
-        d[i] = d[i+1] = d[i+2] = bw;
+    // ── MÉTODO 2: jsQR via canvas (fallback) ──
+    if (typeof jsQR !== 'undefined') {
+      const canvas = document.getElementById('qr-canvas');
+      const vw = video.videoWidth, vh = video.videoHeight;
+      canvas.width = vw; canvas.height = vh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, vw, vh);
+
+      // Tentativa A: frame completo
+      let imgData = ctx.getImageData(0, 0, vw, vh);
+      let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
+
+      // Tentativa B: crop central 65% → 512px
+      if (!code) {
+        if (!_ccCrop) { _ccCrop = document.createElement('canvas'); _ccCrop.width = 512; _ccCrop.height = 512; }
+        const cs = Math.min(vw, vh) * 0.65;
+        const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
+        const cCtx = _ccCrop.getContext('2d');
+        cCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
+        imgData = cCtx.getImageData(0, 0, 512, 512);
+        code = jsQR(imgData.data, 512, 512, { inversionAttempts: 'attemptBoth' });
       }
-      cCtx.putImageData(id, 0, 0);
-      const id2 = cCtx.getImageData(0, 0, 512, 512);
-      code = jsQR(id2.data, 512, 512, { inversionAttempts: 'attemptBoth' });
-    }
 
-    if (code) {
-      pararCamera();
-      processarQR(code.data);
-      return;
+      // Tentativa C: binarização P&B
+      if (!code) {
+        if (!_ccCrop) { _ccCrop = document.createElement('canvas'); _ccCrop.width = 512; _ccCrop.height = 512; }
+        const cs = Math.min(vw, vh) * 0.65;
+        const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
+        const cCtx = _ccCrop.getContext('2d');
+        cCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
+        const id = cCtx.getImageData(0, 0, 512, 512);
+        const d = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const gray = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+          const bw = gray > 128 ? 255 : 0;
+          d[i] = d[i+1] = d[i+2] = bw;
+        }
+        cCtx.putImageData(id, 0, 0);
+        const id2 = cCtx.getImageData(0, 0, 512, 512);
+          code = jsQR(id2.data, 512, 512, { inversionAttempts: 'attemptBoth' });
+      }
+
+      if (code) {
+        pararCamera();
+        processarQR(code.data);
+        return;
+      }
     }
   }
   qrAnimFrame = requestAnimationFrame(lerQRFrame);

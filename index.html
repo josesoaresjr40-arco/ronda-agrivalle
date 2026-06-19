@@ -1331,16 +1331,9 @@ async function abrirCamera() {
   try {
     // Câmera traseira em alta resolução (ideal = sem bloqueio em nenhum dispositivo)
     qrStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
     });
-    // Habilita lanterna se disponível (ajuda em baixa luminosidade)
-    try {
-      const track = qrStream.getVideoTracks()[0];
-      if (track && track.getCapabilities) {
-        const caps = track.getCapabilities();
-        if (caps.torch) await track.applyConstraints({ advanced: [{ torch: true }] });
-      }
-    } catch(e) {}
+    // Torch desativado — causa superexposição que dificulta leitura do QR
     video.srcObject = qrStream;
     await video.play();
     lerQRFrame();
@@ -1408,11 +1401,16 @@ function iniciarScanItem(itemId) {
 
 // Canvas permanente para evitar alocação a cada frame
 let _ccCrop = null;
+let _lastScanTime = 0;
 function lerQRFrame() {
   if (typeof jsQR === 'undefined') { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
   const video = document.getElementById('qr-video');
   const canvas = document.getElementById('qr-canvas');
   if (!qrStream) return;
+  // Throttle: só processa a cada 150ms para não sobrecarregar CPU
+  const now = Date.now();
+  if (now - _lastScanTime < 150) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
+  _lastScanTime = now;
   if (video.readyState === video.HAVE_ENOUGH_DATA) {
     const vw = video.videoWidth, vh = video.videoHeight;
     canvas.width = vw; canvas.height = vh;

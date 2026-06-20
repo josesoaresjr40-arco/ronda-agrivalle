@@ -1335,11 +1335,16 @@ function backToChecklist() {
   showScreen('screen-checklist');
 
   if (proxConj) {
-    // Avança automaticamente: exige scan do QR do próximo equipamento
+    // Seção concluída — destaca o próximo equipamento e aguarda clique do usuário
     setTimeout(() => {
-      conjEsperado = proxConj.id;
-      showToast('✅ ' + (conjAtual?.icon||'') + ' ' + (conjAtual?.nome||'') + ' concluído! Escaneie o QR: ' + (proxConj.icon||'') + ' ' + proxConj.nome);
-      setTimeout(() => abrirCamera(), 1200);
+      showToast('✅ ' + (conjAtual?.icon||'') + ' ' + (conjAtual?.nome||'') + ' concluído! Toque em: ' + (proxConj.icon||'') + ' ' + proxConj.nome);
+      const proxCard = document.getElementById('conjunto-' + proxConj.id);
+      if (proxCard) {
+        proxCard.style.transition = 'box-shadow .3s';
+        proxCard.style.boxShadow = '0 0 0 3px #5d7261';
+        proxCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { proxCard.style.boxShadow = ''; }, 3000);
+      }
     }, 300);
   } else {
     // Todos os equipamentos concluídos

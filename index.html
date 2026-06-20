@@ -467,8 +467,8 @@ window.addEventListener('DOMContentLoaded', () => {
     <div class="export-card" onclick="exportarParaDashboard()" style="padding:24px 20px;">
       <div class="export-icon" style="font-size:40px;">📊</div>
       <div class="export-info">
-        <div class="export-title" style="font-size:17px;">Atualizar Dashboard</div>
-        <div class="export-sub">Envia os dados da ronda para o Dashboard Agrivalle</div>
+        <div class="export-title" style="font-size:17px;">Exportar para Dashboard</div>
+        <div class="export-sub">Gera arquivo JSON para carregar no Dashboard (compartilhe via WhatsApp ou email)</div>
       </div>
     </div>
     <input type="date" id="export-date" style="display:none">
@@ -1291,53 +1291,37 @@ function saveItem() {
   setTimeout(() => verificarEnvioAutomatico(), 1200);
 }
 
-function proximoItemPendente(itemIdAtual) {
-  // Retorna o próximo item sem status no turno atual
-  const tData = CHECKLIST_DATA[currentTurn];
-  const data = loadData(todayKey());
-  let passouAtual = false;
-  for (const c of tData.conjuntos) {
-    for (const item of c.itens) {
-      if (item.id === itemIdAtual) { passouAtual = true; continue; }
-      if (passouAtual && !data[item.id]?.status) return { item, conjId: c.id };
-    }
-  }
-  // Se não achou depois, tenta antes (wrap around)
-  for (const c of tData.conjuntos) {
-    for (const item of c.itens) {
-      if (item.id === itemIdAtual) break;
-      if (!data[item.id]?.status) return { item, conjId: c.id };
-    }
-  }
-  return null;
-}
-
 function backToChecklist() {
-  const proximo = proximoItemPendente(currentItemId);
   const conjId = findConjunto(currentItemId);
   renderChecklist(currentTurn);
   showScreen('screen-checklist');
 
   setTimeout(() => {
-    if (proximo) {
-      // Só abre a seção se ela já foi liberada por QR
-      if (secaoLiberada(proximo.conjId)) {
-        const proxCard = document.getElementById('conjunto-' + proximo.conjId);
-        if (proxCard) proxCard.classList.add('open');
-        salvarSecaoAberta(proximo.conjId);
-        setTimeout(() => {
-          const proxRow = document.getElementById('row-' + proximo.item.id);
-          if (proxRow) proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 150);
-      } else {
-        // Seção não liberada — rola até o cabeçalho para o usuário escanear o QR
-        const proxCard = document.getElementById('conjunto-' + proximo.conjId);
-        if (proxCard) proxCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Mantém a seção atual aberta
+    const card = document.getElementById('conjunto-' + conjId);
+    if (card) card.classList.add('open');
+
+    // Rola para o próximo item pendente DENTRO DA MESMA SEÇÃO
+    const tData = CHECKLIST_DATA[currentTurn];
+    const data = loadData(todayKey());
+    let conjAtual = null;
+    for (const c of tData.conjuntos) if (c.id === conjId) { conjAtual = c; break; }
+
+    if (conjAtual) {
+      let passou = false;
+      let proxRow = null;
+      for (const item of conjAtual.itens) {
+        if (item.id === currentItemId) { passou = true; continue; }
+        if (passou && !data[item.id]?.status) { proxRow = document.getElementById('row-' + item.id); break; }
       }
-    } else {
-      // Todos concluídos — reabre a seção atual
-      const card = document.getElementById('conjunto-' + conjId);
-      if (card) card.classList.add('open');
+      setTimeout(() => {
+        if (proxRow) {
+          proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          // Todos da seção feitos — rola para o topo da lista
+          card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
     }
   }, 100);
 }
@@ -1627,7 +1611,13 @@ function processarQR(data) {
     return;
   }
   const payload = data.replace('RONDA:', '');
-  // QR de SEÇÃO: RONDA:CONJ:C1 → abre a seção no checklist
+  // QR por nome da seção (novo formato — um QR por equipamento)
+  if (payload.startsWith('SECAO:')) {
+    const nome = payload.replace('SECAO:', '');
+    abrirSecaoPorNome(nome);
+    return;
+  }
+  // QR por ID (formato antigo — retrocompatibilidade)
   if (payload.startsWith('CONJ:')) {
     const conjId = payload.replace('CONJ:', '');
     abrirSecaoConj(conjId);
@@ -1651,6 +1641,41 @@ function processarQR(data) {
 }
 
 // Abre a seção correspondente ao QR escaneado e libera todos os itens dela
+function abrirSecaoPorNome(nome) {
+  // Busca a seção pelo NOME no turno atual
+  const tData = CHECKLIST_DATA[currentTurn];
+  let encontrado = null;
+  for (const c of tData.conjuntos) {
+    if (c.nome.trim().toUpperCase() === nome.trim().toUpperCase()) { encontrado = c; break; }
+  }
+  if (!encontrado) {
+    showToast('❌ Seção "' + nome + '" não encontrada no turno atual');
+    showScreen(qrReturnScreen || 'screen-checklist');
+    return;
+  }
+  // Valida contra o esperado (por nome)
+  if (conjEsperado) {
+    const tDataAll = CHECKLIST_DATA[currentTurn];
+    let nomeEsperado = conjEsperado;
+    for (const c of tDataAll.conjuntos) if (c.id === conjEsperado) { nomeEsperado = c.nome; break; }
+    if (encontrado.nome.trim().toUpperCase() !== nomeEsperado.trim().toUpperCase()) {
+      showToast('❌ QR errado! Escaneie o QR de: ' + nomeEsperado);
+      abrirCamera();
+      return;
+    }
+  }
+  conjEsperado = null;
+  liberarSecao(encontrado.id);
+  if (navigator.vibrate) navigator.vibrate(80);
+  renderChecklist(currentTurn);
+  showScreen('screen-checklist');
+  showToast('✅ ' + encontrado.icon + ' ' + encontrado.nome + ' — aberta para inspeção');
+  setTimeout(() => {
+    const el = document.getElementById('conjunto-' + encontrado.id);
+    if (el) { el.classList.add('open'); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }, 120);
+}
+
 function abrirSecaoConj(conjId) {
   // Validar: se havia seção esperada, só aceita o QR correto
   if (conjEsperado && conjId !== conjEsperado) {
@@ -2047,21 +2072,31 @@ function exportarParaDashboard() {
 
   if (!rows.length) { showToast('⚠️ Nenhum dado de ronda encontrado'); return; }
 
-  // Salvar no localStorage — o dashboard lê daqui
   try {
-    // Mesclar com dados existentes
+    // Salvar no localStorage (funciona se dashboard estiver no mesmo browser)
     let existentes = [];
     try { existentes = JSON.parse(localStorage.getItem('dashboard_rondas_data') || '[]'); } catch(e) {}
-    // Remover entradas antigas com mesma data+turno+tipo e adicionar novas
     const chave = r => r.Tipo + '|' + r.Data + '|' + r.Turno + '|' + (r.Componente || '');
     const novasChaves = new Set(rows.map(chave));
     const filtradas = existentes.filter(r => !novasChaves.has(chave(r)));
     const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
     localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
+
+    // Gerar arquivo JSON para download/compartilhamento
+    const nomeArquivo = 'rondas_' + todayKey() + '.json';
+    const blob = new Blob([JSON.stringify(merged, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+
     const rondas = rows.filter(r => r.Tipo === 'ronda').length;
-    showToast('✅ Dashboard atualizado! ' + rondas + ' ronda(s) exportadas');
+    showToast('✅ Arquivo gerado! Abra no Dashboard com "Importar JSON"');
   } catch(e) {
-    showToast('❌ Erro ao salvar: ' + e.message);
+    showToast('❌ Erro: ' + e.message);
   }
 }
 
@@ -2419,7 +2454,7 @@ function abrirQRFullscreen(conjId, nome, nItens, icon) {
   sub.textContent = nItens + ' itens para verificação';
   code.textContent = conjId;
   const sz = Math.min(window.innerWidth - 40, 340);
-  try { new QRCode(qrWrap, { text: 'RONDA:CONJ:' + conjId, width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
+  try { new QRCode(qrWrap, { text: 'RONDA:SECAO:' + (() => { for(const td of Object.values(CHECKLIST_DATA)) for(const c of td.conjuntos) if(c.id===conjId) return c.nome; return conjId; })(), width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
   overlay.classList.add('active');
 }
 
@@ -2469,13 +2504,23 @@ function renderQRCards(query) {
 function gerarPDFQRCodes() {
   const win = window.open('', '_blank');
   if (!win) { showToast('Permita pop-ups para gerar o PDF'); return; }
-  // Coletar seções de ambos os turnos
-  const secoes = [];
+  // Coletar seções únicas por nome — um só QR por equipamento (serve para Dia e Noite)
+  const secoesMap = new Map();
   for (const [turn, td] of Object.entries(CHECKLIST_DATA)) {
     for (const c of td.conjuntos) {
-      secoes.push({ conjId: c.id, nome: c.nome, icon: c.icon || '', turno: td.nome, nItens: c.itens.length });
+      const key = c.nome.trim().toUpperCase();
+      if (!secoesMap.has(key)) {
+        secoesMap.set(key, { conjId: c.id, conjNome: c.nome, nome: c.nome, icon: c.icon || '', turno: '', nItens: c.itens.length });
+      }
     }
   }
+  // Determinar em qual(is) turno(s) cada seção aparece
+  for (const [key, s] of secoesMap.entries()) {
+    const emDia   = CHECKLIST_DATA['1'].conjuntos.some(c => c.nome.trim().toUpperCase() === key);
+    const emNoite = CHECKLIST_DATA['2'].conjuntos.some(c => c.nome.trim().toUpperCase() === key);
+    s.turno = emDia && emNoite ? 'TURNO DIA E NOITE' : emDia ? 'TURNO DIA' : 'TURNO NOITE';
+  }
+  const secoes = [...secoesMap.values()];
   const cells = secoes.map(s => `
     <div class="cell">
       <div class="qr" id="qr-${s.conjId}"></div>
@@ -2515,7 +2560,7 @@ function gerarPDFQRCodes() {
         secoes.forEach(function(s) {
           try {
             new QRCode(document.getElementById('qr-' + s.conjId), {
-              text: 'RONDA:CONJ:' + s.conjId,
+              text: 'RONDA:SECAO:' + s.conjNome,
               width: 220, height: 220,
               correctLevel: QRCode.CorrectLevel.L
             });

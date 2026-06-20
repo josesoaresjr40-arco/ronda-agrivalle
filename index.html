@@ -2661,7 +2661,7 @@ function abrirQRFullscreen(conjId, nome, nItens, icon) {
   sub.textContent = nItens + ' itens para verificação';
   code.textContent = conjId;
   const sz = Math.min(window.innerWidth - 40, 340);
-  try { new QRCode(qrWrap, { text: 'RONDA:SECAO:' + (() => { for(const td of Object.values(CHECKLIST_DATA)) for(const c of td.conjuntos) if(c.id===conjId) return c.nome; return conjId; })(), width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
+  try { new QRCode(qrWrap, { text: 'RONDA:CONJ:' + conjId, width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
   overlay.classList.add('active');
 }
 
@@ -2699,13 +2699,13 @@ function renderQRCards(query) {
       card.appendChild(info);
       cards.push(card);
       anyShown = true;
-      const conjNome = c.nome;
+      const conjId2 = c.id;
       const qrEl = qrWrap;
       const d = delay;
       setTimeout(() => {
         try {
           if (typeof QRCode !== 'undefined') {
-            new QRCode(qrEl, { text: 'RONDA:SECAO:' + conjNome, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.L });
+            new QRCode(qrEl, { text: 'RONDA:CONJ:' + conjId2, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.L });
           }
         } catch(e) {}
       }, d);
@@ -2801,7 +2801,7 @@ function abrirQRPDF() {
         secoes.forEach(function(s) {
           try {
             new QRCode(document.getElementById('qr-' + s.conjId), {
-              text: 'RONDA:SECAO:' + s.conjNome,
+              text: 'RONDA:CONJ:' + s.conjId,
               width: 220, height: 220,
               correctLevel: QRCode.CorrectLevel.L
             });

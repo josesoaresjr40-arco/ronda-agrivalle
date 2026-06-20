@@ -7,23 +7,24 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- APP_VERSION: 2026-06-20-v5 -->
+<!-- APP_VERSION: 2026-06-20-v6 -->
 <script>
-// Auto-limpeza de service workers antigos (roda antes de qualquer coisa)
+// Limpeza FORÇADA de todos os SWs e caches antigos — roda UMA vez por sessão
 (function() {
-  var SW_VERSION_KEY = 'sw_cleared_v5';
-  if (!sessionStorage.getItem(SW_VERSION_KEY) && 'serviceWorker' in navigator) {
-    sessionStorage.setItem(SW_VERSION_KEY, '1');
+  var KEY = 'sw_force_cleared_v6';
+  if (sessionStorage.getItem(KEY)) return;
+  sessionStorage.setItem(KEY, '1');
+  if (!('serviceWorker' in navigator)) return;
+  Promise.all([
     navigator.serviceWorker.getRegistrations().then(function(regs) {
-      var hadOld = false;
-      regs.forEach(function(reg) {
-        var swUrl = (reg.active && reg.active.scriptURL) || '';
-        // Desregistra SWs inline (antigos) que não são o sw.js externo
-        if (!swUrl.includes('sw.js')) { reg.unregister(); hadOld = true; }
-      });
-      if (hadOld) { caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); location.reload(true); }
-    });
-  }
+      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+    }),
+    ('caches' in window) ? caches.keys().then(function(keys) {
+      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }) : Promise.resolve()
+  ]).then(function() {
+    location.reload(true);
+  });
 })();
 </script>
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2752,10 +2753,8 @@ window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
 });
-</script>
-</body>
-</html>
-{
+
+function abrirQRPDF() {
   const win = window.open('', '_blank');
   if (!win) { showToast('Permita pop-ups para gerar o PDF'); return; }
   // Coletar seções únicas por nome — um só QR por equipamento (serve para Dia e Noite)
@@ -2892,34 +2891,8 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
-
-// ===== INIT =====
-document.addEventListener('DOMContentLoaded', () => {
-  try {
-    // Confirmar que JS está funcionando
-    const jsEl = document.getElementById('js-status');
-    if (jsEl) jsEl.textContent = '✅ App carregado';
-    updateHomeStats();
-    try { document.getElementById('pend-date').value = todayKey(); } catch(e){}
-    try { document.getElementById('export-date').value = todayKey(); } catch(e){}
-    const savedResp = getResp();
-    if (savedResp) { try { document.getElementById('resp-input').value = savedResp; } catch(e){} }
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    }
-  } catch(e) { console.warn('Init error:', e); }
-});
-
-// PWA install prompt
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-});
 </script>
-</body>
-</html>
-ULLSCREEN -->
+
 <div id="modal-qr-full" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);flex-direction:column;align-items:center;justify-content:center;padding:20px;">
   <div style="background:white;border-radius:20px;padding:28px 24px 20px;text-align:center;max-width:340px;width:100%;">
     <div id="qr-full-title" style="font-size:17px;font-weight:700;color:#1a2e4a;margin-bottom:4px;line-height:1.3;"></div>

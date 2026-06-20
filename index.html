@@ -1074,17 +1074,6 @@ function renderChecklist(turn) {
   }
   updateProgress(checkedItems, totalItems);
 
-  // Restaurar seção aberta antes de sair
-  const secaoSalva = getSecaoAberta ? getSecaoAberta() : '';
-  if (secaoSalva) {
-    setTimeout(() => {
-      const el = document.getElementById('conjunto-' + secaoSalva);
-      if (el) {
-        el.classList.add('open');
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
-  }
 }
 
 function renderItemRow(item, saved) {

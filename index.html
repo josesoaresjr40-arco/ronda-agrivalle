@@ -2086,8 +2086,9 @@ async function exportarParaDashboard() {
     const nomeArquivo = 'rondas_agrivalle.json';
     const jsonStr = JSON.stringify(merged, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
+    const arquivo = new File([jsonStr], nomeArquivo, { type: 'application/json' });
 
-    // Tenta File System Access API (permite salvar direto no OneDrive)
+    // 1º: File System Access API — salva direto na pasta (Android Chrome + Chrome desktop)
     if (window.showSaveFilePicker) {
       try {
         const fh = await window.showSaveFilePicker({
@@ -2101,20 +2102,27 @@ async function exportarParaDashboard() {
         return;
       } catch(fsErr) {
         if (fsErr.name === 'AbortError') return; // usuário cancelou
-        // Se falhou por outro motivo, cai no download normal
       }
     }
 
-    // Fallback: download normal
+    // 2º: Web Share API — abre tela de compartilhamento (iOS Safari)
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({ files: [arquivo], title: 'Rondas Agrivalle' });
+        showToast('✅ Compartilhado! Salve no OneDrive e importe no Dashboard');
+        return;
+      } catch(shareErr) {
+        if (shareErr.name === 'AbortError') return;
+      }
+    }
+
+    // 3º: Download normal (fallback)
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = nomeArquivo;
-    document.body.appendChild(a);
-    a.click();
+    a.href = url; a.download = nomeArquivo;
+    document.body.appendChild(a); a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-    const rondas = rows.filter(r => r.Tipo === 'ronda').length;
-    showToast('✅ Arquivo gerado! Mova para OneDrive e importe no Dashboard');
+    showToast('✅ Arquivo baixado! Mova para OneDrive e importe no Dashboard');
   } catch(e) {
     showToast('❌ Erro: ' + e.message);
   }

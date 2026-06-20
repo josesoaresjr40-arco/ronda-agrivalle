@@ -1320,14 +1320,20 @@ function backToChecklist() {
 
   setTimeout(() => {
     if (proximo) {
-      // Abre a seção do próximo item e rola até ele
-      const proxCard = document.getElementById('conjunto-' + proximo.conjId);
-      if (proxCard) proxCard.classList.add('open');
-      salvarSecaoAberta(proximo.conjId);
-      setTimeout(() => {
-        const proxRow = document.getElementById('row-' + proximo.item.id);
-        if (proxRow) proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 150);
+      // Só abre a seção se ela já foi liberada por QR
+      if (secaoLiberada(proximo.conjId)) {
+        const proxCard = document.getElementById('conjunto-' + proximo.conjId);
+        if (proxCard) proxCard.classList.add('open');
+        salvarSecaoAberta(proximo.conjId);
+        setTimeout(() => {
+          const proxRow = document.getElementById('row-' + proximo.item.id);
+          if (proxRow) proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      } else {
+        // Seção não liberada — rola até o cabeçalho para o usuário escanear o QR
+        const proxCard = document.getElementById('conjunto-' + proximo.conjId);
+        if (proxCard) proxCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } else {
       // Todos concluídos — reabre a seção atual
       const card = document.getElementById('conjunto-' + conjId);

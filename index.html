@@ -349,6 +349,7 @@ window.addEventListener('DOMContentLoaded', () => {
   <div class="header">
     <button class="header-back" onclick="showScreen('screen-home')">←</button>
     <div class="header-title" id="checklist-title">Ronda 1º Turno</div>
+    <button id="btn-pausar" onclick="pausarRonda()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:10px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;">⏸ Pausar</button>
   </div>
   <div class="checklist-header">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1021,6 +1022,7 @@ function startRonda(turn) {
 }
 
 function renderChecklist(turn) {
+  atualizarBotaoPausa();
   const tData = CHECKLIST_DATA[turn];
   const body = document.getElementById('checklist-body');
   const date = todayKey();
@@ -1289,12 +1291,49 @@ function saveItem() {
   setTimeout(() => verificarEnvioAutomatico(), 1200);
 }
 
+function proximoItemPendente(itemIdAtual) {
+  // Retorna o próximo item sem status no turno atual
+  const tData = CHECKLIST_DATA[currentTurn];
+  const data = loadData(todayKey());
+  let passouAtual = false;
+  for (const c of tData.conjuntos) {
+    for (const item of c.itens) {
+      if (item.id === itemIdAtual) { passouAtual = true; continue; }
+      if (passouAtual && !data[item.id]?.status) return { item, conjId: c.id };
+    }
+  }
+  // Se não achou depois, tenta antes (wrap around)
+  for (const c of tData.conjuntos) {
+    for (const item of c.itens) {
+      if (item.id === itemIdAtual) break;
+      if (!data[item.id]?.status) return { item, conjId: c.id };
+    }
+  }
+  return null;
+}
+
 function backToChecklist() {
-  renderChecklist(currentTurn);
-  // Reopen conjunto
+  const proximo = proximoItemPendente(currentItemId);
   const conjId = findConjunto(currentItemId);
+  renderChecklist(currentTurn);
   showScreen('screen-checklist');
-  if (conjId) setTimeout(() => document.getElementById('conjunto-' + conjId)?.classList.add('open'), 100);
+
+  setTimeout(() => {
+    if (proximo) {
+      // Abre a seção do próximo item e rola até ele
+      const proxCard = document.getElementById('conjunto-' + proximo.conjId);
+      if (proxCard) proxCard.classList.add('open');
+      salvarSecaoAberta(proximo.conjId);
+      setTimeout(() => {
+        const proxRow = document.getElementById('row-' + proximo.item.id);
+        if (proxRow) proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    } else {
+      // Todos concluídos — reabre a seção atual
+      const card = document.getElementById('conjunto-' + conjId);
+      if (card) card.classList.add('open');
+    }
+  }, 100);
 }
 
 // ===== QR CODE =====
@@ -1813,6 +1852,47 @@ function exportPendencias() {
   salvarRelatorio(wb, `Pendencias_${date}.xlsx`);
 }
 
+// ===== PAUSA DA RONDA =====
+function pausarRonda() {
+  const date = todayKey();
+  const turn = currentTurn;
+  const isPausado = localStorage.getItem('ronda_pausada_' + turn + '_' + date) === '1';
+
+  if (!isPausado) {
+    // PAUSAR: salva tempo acumulado e marca como pausada
+    const inicio = +localStorage.getItem('ronda_inicio_' + turn + '_' + date);
+    if (inicio) {
+      const acumulado = (+localStorage.getItem('ronda_acumulado_' + turn + '_' + date) || 0)
+                      + (Date.now() - inicio);
+      localStorage.setItem('ronda_acumulado_' + turn + '_' + date, acumulado);
+      localStorage.setItem('ronda_inicio_' + turn + '_' + date, ''); // zera início
+    }
+    localStorage.setItem('ronda_pausada_' + turn + '_' + date, '1');
+    const btn = document.getElementById('btn-pausar');
+    if (btn) { btn.textContent = '▶ Retomar'; btn.style.background = 'rgba(74,222,128,0.25)'; btn.style.borderColor = '#4ade80'; }
+    showToast('⏸ Ronda pausada — dados salvos');
+  } else {
+    // RETOMAR: reinicia o início do timer
+    localStorage.setItem('ronda_inicio_' + turn + '_' + date, Date.now());
+    localStorage.removeItem('ronda_pausada_' + turn + '_' + date);
+    const btn = document.getElementById('btn-pausar');
+    if (btn) { btn.textContent = '⏸ Pausar'; btn.style.background = 'rgba(255,255,255,0.15)'; btn.style.borderColor = 'rgba(255,255,255,0.4)'; }
+    showToast('▶ Ronda retomada!');
+  }
+}
+
+function atualizarBotaoPausa() {
+  const date = todayKey();
+  const isPausado = localStorage.getItem('ronda_pausada_' + currentTurn + '_' + date) === '1';
+  const btn = document.getElementById('btn-pausar');
+  if (!btn) return;
+  if (isPausado) {
+    btn.textContent = '▶ Retomar'; btn.style.background = 'rgba(74,222,128,0.25)'; btn.style.borderColor = '#4ade80';
+  } else {
+    btn.textContent = '⏸ Pausar'; btn.style.background = 'rgba(255,255,255,0.15)'; btn.style.borderColor = 'rgba(255,255,255,0.4)';
+  }
+}
+
 // ===== TEMPO DE EXECUÇÃO DA RONDA =====
 function marcarInicioRonda() {
   try {
@@ -1821,10 +1901,16 @@ function marcarInicioRonda() {
   } catch(e) {}
 }
 function duracaoRonda(turn, date) {
+  const acumulado = +localStorage.getItem('ronda_acumulado_' + turn + '_' + date) || 0;
   const i = +localStorage.getItem('ronda_inicio_' + turn + '_' + date);
-  if (!i) return '';
-  const f = +localStorage.getItem('ronda_fim_' + turn + '_' + date) || Date.now();
-  const m = Math.max(1, Math.round((f - i) / 60000));
+  const fim = +localStorage.getItem('ronda_fim_' + turn + '_' + date);
+  let ms = acumulado;
+  if (i) {
+    const ate = fim || Date.now();
+    ms += ate - i;
+  }
+  if (!ms) return '';
+  const m = Math.max(1, Math.round(ms / 60000));
   return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'min' : m + 'min';
 }
 function horaRonda(chave, turn, date) {
@@ -2484,6 +2570,10 @@ function clearDayData() {
     });
     // Seções liberadas por QR hoje
     localStorage.removeItem('secoes_lib_' + date);
+    ['1','2'].forEach(t => {
+      localStorage.removeItem('ronda_acumulado_' + t + '_' + date);
+      localStorage.removeItem('ronda_pausada_' + t + '_' + date);
+    });
   } catch(e) {}
   updateHomeStats();
   renderEscalaApp();

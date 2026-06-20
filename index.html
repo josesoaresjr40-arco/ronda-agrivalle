@@ -468,7 +468,14 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="export-icon" style="font-size:40px;">📊</div>
       <div class="export-info">
         <div class="export-title" style="font-size:17px;">Exportar para Dashboard</div>
-        <div class="export-sub">Gera arquivo JSON para carregar no Dashboard (compartilhe via WhatsApp ou email)</div>
+        <div class="export-sub">Compartilha ou salva arquivo JSON para o Dashboard</div>
+      </div>
+    </div>
+    <div class="export-card" onclick="copiarJsonParaClipboard()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📋</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Copiar dados para Dashboard</div>
+        <div class="export-sub">Copia os dados — no Dashboard clique "Colar JSON do App"</div>
       </div>
     </div>
     <input type="date" id="export-date" style="display:none">
@@ -2017,6 +2024,65 @@ async function verificarEnvioAutomatico() {
   setTimeout(() => enviarEmailCompleto(date, currentTurn, true), 1800);
 }
 
+async function copiarJsonParaClipboard() {
+  // Gera o mesmo JSON do exportarParaDashboard mas copia para clipboard
+  const rows = [];
+  for (let d = 0; d < 60; d++) {
+    const dt = new Date(); dt.setDate(dt.getDate() - d);
+    const dateKey = dt.toISOString().slice(0,10);
+    for (const turnKey of ['1','2']) {
+      const td = CHECKLIST_DATA[turnKey];
+      const data = loadData(dateKey);
+      const temDados = td.conjuntos.some(c => c.itens.some(i => data[i.id]?.status));
+      if (!temDados) continue;
+      const resp = localStorage.getItem('resp_nome') || 'N/I';
+      const inicio = horaRonda('inicio', turnKey, dateKey);
+      const fim = horaRonda('fim', turnKey, dateKey);
+      const dur = duracaoRonda(turnKey, dateKey);
+      let totalOK = 0, totalNOK = 0, total = 0;
+      for (const c of td.conjuntos) {
+        for (const item of c.itens) {
+          total++;
+          const s = data[item.id]?.status;
+          if (s === 'ok') totalOK++;
+          else if (s === 'nok') {
+            totalNOK++;
+            rows.push({ Tipo:'item', Data:dateKey, Turno:td.nome, Responsavel:resp,
+              Conjunto:c.nome, Componente:item.comp, Status:'NOK',
+              Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
+          }
+        }
+      }
+      const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+      rows.push({ Tipo:'ronda', Data:dateKey, Turno:td.nome, Responsavel:resp,
+        Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
+        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+    }
+  }
+  if (!rows.length) { showToast('⚠️ Nenhum dado de ronda encontrado'); return; }
+  let existentes = [];
+  try { existentes = JSON.parse(localStorage.getItem('dashboard_rondas_data')||'[]'); } catch(e){}
+  const chave = r => r.Tipo+'|'+r.Data+'|'+r.Turno+'|'+(r.Componente||'');
+  const novasChaves = new Set(rows.map(chave));
+  const filtradas = existentes.filter(r => !novasChaves.has(chave(r)));
+  const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
+  localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
+  const jsonStr = JSON.stringify(merged);
+  try {
+    await navigator.clipboard.writeText(jsonStr);
+    showToast('✅ Copiado! No Dashboard clique "Colar JSON do App"');
+  } catch(e) {
+    // Fallback: mostrar em textarea para copiar manualmente
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;flex-direction:column;padding:20px;gap:12px;';
+    modal.innerHTML = `<div style="color:#fff;font-weight:700;font-size:16px;">Selecione tudo e copie:</div>
+      <textarea readonly style="flex:1;border-radius:10px;padding:10px;font-size:12px;font-family:monospace;">${jsonStr}</textarea>
+      <button onclick="this.parentNode.remove()" style="background:#dc2626;color:#fff;border:none;border-radius:10px;padding:14px;font-size:16px;font-weight:700;">Fechar</button>`;
+    document.body.appendChild(modal);
+    modal.querySelector('textarea').select();
+  }
+}
+
 async function exportarParaDashboard() {
   // Lê todos os dados salvos e formata no padrão do dashboard
   const rows = [];
@@ -2128,6 +2194,49 @@ async function exportarParaDashboard() {
   }
 }
 
+// Gera bloco JSON compacto de uma data/turno para incluir no email
+function gerarBlocoDashboard(datas) {
+  const rows = [];
+  for (const { date, turnKeys } of datas) {
+    for (const turnKey of turnKeys) {
+      const td = CHECKLIST_DATA[turnKey];
+      if (!td) continue;
+      const data = loadData(date);
+      const temDados = td.conjuntos.some(c => c.itens.some(i => data[i.id]?.status));
+      if (!temDados) continue;
+      const resp = localStorage.getItem('resp_nome') || 'N/I';
+      const inicio = horaRonda('inicio', turnKey, date);
+      const fim = horaRonda('fim', turnKey, date);
+      const dur = duracaoRonda(turnKey, date);
+      let totalOK = 0, totalNOK = 0, total = 0;
+      for (const c of td.conjuntos) {
+        for (const item of c.itens) {
+          total++;
+          const s = data[item.id]?.status;
+          if (s === 'ok') totalOK++;
+          else if (s === 'nok') {
+            totalNOK++;
+            rows.push({ Tipo:'item', Data:date, Turno:td.nome, Responsavel:resp,
+              Conjunto:c.nome, Componente:item.comp, Status:'NOK',
+              Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
+          }
+        }
+      }
+      const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+      rows.push({ Tipo:'ronda', Data:date, Turno:td.nome, Responsavel:resp,
+        Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
+        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+    }
+  }
+  if (!rows.length) return '';
+  return '\n\n====================================================\n' +
+    'DADOS DASHBOARD - NAO ALTERE ESTE BLOCO\n' +
+    '====================================================\n' +
+    '###DASHBOARD_JSON_START###\n' +
+    JSON.stringify(rows) + '\n' +
+    '###DASHBOARD_JSON_END###';
+}
+
 function enviarRelatorioCompleto() {
   const date = todayKey();
   const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
@@ -2193,7 +2302,8 @@ function enviarRelatorioCompleto() {
 
   linhas.push('====================================================');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const corpo = linhas.join('\n');
+  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: ['1','2'] }]);
+  const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   mostrarModalRelatorio(assunto, corpo, mailto, false);
@@ -2260,7 +2370,8 @@ function enviarEmailCompleto(date, turnKey, autoAbrir) {
   }
   linhas.push('');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const corpo = linhas.join('\n');
+  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: [turnKey] }]);
+  const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir);

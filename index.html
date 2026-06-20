@@ -7,11 +7,11 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- APP_VERSION: 2026-06-20-v6 -->
+<!-- APP_VERSION: 2026-06-20-v7 -->
 <script>
 // Limpeza FORÇADA de todos os SWs e caches antigos — roda UMA vez por sessão
 (function() {
-  var KEY = 'sw_force_cleared_v6';
+  var KEY = 'sw_force_cleared_v7';
   if (sessionStorage.getItem(KEY)) return;
   sessionStorage.setItem(KEY, '1');
   if (!('serviceWorker' in navigator)) return;
@@ -1300,37 +1300,55 @@ function saveItem() {
 
 function backToChecklist() {
   const conjId = findConjunto(currentItemId);
+  const tData = CHECKLIST_DATA[currentTurn];
+  const data = loadData(todayKey());
+
+  // Verifica se ainda tem item pendente NA MESMA SEÇÃO
+  let conjAtual = null;
+  for (const c of tData.conjuntos) if (c.id === conjId) { conjAtual = c; break; }
+  const pendentesNaSecao = conjAtual ? conjAtual.itens.filter(i => !data[i.id]?.status) : [];
+
+  if (pendentesNaSecao.length > 0) {
+    // Ainda tem itens na seção — volta e rola para o próximo
+    renderChecklist(currentTurn);
+    showScreen('screen-checklist');
+    setTimeout(() => {
+      const card = document.getElementById('conjunto-' + conjId);
+      if (card) card.classList.add('open');
+      const proxRow = document.getElementById('row-' + pendentesNaSecao[0].id);
+      if (proxRow) proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return;
+  }
+
+  // Seção concluída — encontra o próximo conjunto não concluído
+  let proxConj = null;
+  let passouAtual = false;
+  for (const c of tData.conjuntos) {
+    if (c.id === conjId) { passouAtual = true; continue; }
+    if (!passouAtual) continue;
+    const todosDone = c.itens.every(i => data[i.id]?.status);
+    if (!todosDone) { proxConj = c; break; }
+  }
+
   renderChecklist(currentTurn);
   showScreen('screen-checklist');
 
-  setTimeout(() => {
-    // Mantém a seção atual aberta
-    const card = document.getElementById('conjunto-' + conjId);
-    if (card) card.classList.add('open');
-
-    // Rola para o próximo item pendente DENTRO DA MESMA SEÇÃO
-    const tData = CHECKLIST_DATA[currentTurn];
-    const data = loadData(todayKey());
-    let conjAtual = null;
-    for (const c of tData.conjuntos) if (c.id === conjId) { conjAtual = c; break; }
-
-    if (conjAtual) {
-      let passou = false;
-      let proxRow = null;
-      for (const item of conjAtual.itens) {
-        if (item.id === currentItemId) { passou = true; continue; }
-        if (passou && !data[item.id]?.status) { proxRow = document.getElementById('row-' + item.id); break; }
-      }
-      setTimeout(() => {
-        if (proxRow) {
-          proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          // Todos da seção feitos — rola para o topo da lista
-          card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 150);
-    }
-  }, 100);
+  if (proxConj) {
+    // Avança automaticamente: exige scan do QR do próximo equipamento
+    setTimeout(() => {
+      conjEsperado = proxConj.id;
+      showToast('✅ ' + (conjAtual?.icon||'') + ' ' + (conjAtual?.nome||'') + ' concluído! Escaneie o QR: ' + (proxConj.icon||'') + ' ' + proxConj.nome);
+      setTimeout(() => abrirCamera(), 1200);
+    }, 300);
+  } else {
+    // Todos os equipamentos concluídos
+    setTimeout(() => {
+      const card = document.getElementById('conjunto-' + conjId);
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast('🎉 Todos os equipamentos desta ronda concluídos!');
+    }, 150);
+  }
 }
 
 // ===== QR CODE =====
@@ -1649,29 +1667,35 @@ function processarQR(data) {
 
 // Abre a seção correspondente ao QR escaneado e libera todos os itens dela
 function abrirSecaoPorNome(nome) {
-  // Busca a seção pelo NOME no turno atual
-  const tData = CHECKLIST_DATA[currentTurn];
+  // Busca em TODOS os turnos (não só o atual) para suportar QRs de turno noite
   let encontrado = null;
-  for (const c of tData.conjuntos) {
-    if (c.nome.trim().toUpperCase() === nome.trim().toUpperCase()) { encontrado = c; break; }
+  let turnoEncontrado = currentTurn;
+  for (const [t, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      if (c.nome.trim().toUpperCase() === nome.trim().toUpperCase()) {
+        encontrado = c;
+        turnoEncontrado = t;
+        break;
+      }
+    }
+    if (encontrado) break;
   }
   if (!encontrado) {
-    showToast('❌ Seção "' + nome + '" não encontrada no turno atual');
+    showToast('❌ Seção "' + nome + '" não encontrada');
     showScreen(qrReturnScreen || 'screen-checklist');
     return;
   }
-  // Valida contra o esperado (por nome)
-  if (conjEsperado) {
-    const tDataAll = CHECKLIST_DATA[currentTurn];
+  // Valida contra o esperado
+  if (conjEsperado && encontrado.id !== conjEsperado) {
     let nomeEsperado = conjEsperado;
-    for (const c of tDataAll.conjuntos) if (c.id === conjEsperado) { nomeEsperado = c.nome; break; }
-    if (encontrado.nome.trim().toUpperCase() !== nomeEsperado.trim().toUpperCase()) {
-      showToast('❌ QR errado! Escaneie o QR de: ' + nomeEsperado);
-      abrirCamera();
-      return;
-    }
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos) if (c.id === conjEsperado) { nomeEsperado = c.nome; break; }
+    showToast('❌ QR errado! Escaneie o QR de: ' + nomeEsperado);
+    abrirCamera();
+    return;
   }
   conjEsperado = null;
+  currentTurn = turnoEncontrado;
   liberarSecao(encontrado.id);
   if (navigator.vibrate) navigator.vibrate(80);
   renderChecklist(currentTurn);

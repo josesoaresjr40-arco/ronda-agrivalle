@@ -2194,8 +2194,8 @@ async function exportarParaDashboard() {
   }
 }
 
-// Gera bloco JSON compacto de uma data/turno para incluir no email
-function gerarBlocoDashboard(datas) {
+// Gera array de rows para dashboard a partir de datas/turnos
+function gerarRowsDashboard(datas) {
   const rows = [];
   for (const { date, turnKeys } of datas) {
     for (const turnKey of turnKeys) {
@@ -2228,13 +2228,56 @@ function gerarBlocoDashboard(datas) {
         OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
     }
   }
+  return rows;
+}
+
+// Gera blocos de texto (JSON + CSV) para incluir no corpo do email
+function gerarBlocoDashboard(datas) {
+  const rows = gerarRowsDashboard(datas);
   if (!rows.length) return '';
-  return '\n\n====================================================\n' +
+
+  const blocoJSON = '\n\n====================================================\n' +
     'DADOS DASHBOARD - NAO ALTERE ESTE BLOCO\n' +
     '====================================================\n' +
     '###DASHBOARD_JSON_START###\n' +
     JSON.stringify(rows) + '\n' +
     '###DASHBOARD_JSON_END###';
+
+  const csvEscape = v => {
+    const s = String(v === undefined || v === null ? '' : v);
+    return s.includes(';') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const cab = ['Tipo','Data','Turno','Responsavel','Conjunto','Componente','Status','Motivo','Obs','Inicio','Termino','Duracao','OK','NOK','Total','Pct%'];
+  const csvLinhas = [cab.join(';')];
+  for (const r of rows) {
+    csvLinhas.push([
+      r.Tipo, r.Data, r.Turno, r.Responsavel,
+      r.Conjunto||'', r.Componente||'', r.Status||'', r.Motivo||'', r.Obs||'',
+      r.Inicio||'', r.Termino||'', r.Duracao||'',
+      r.OK!=null?r.OK:'', r.NOK!=null?r.NOK:'', r.Total!=null?r.Total:'', r.Pct!=null?r.Pct:''
+    ].map(csvEscape).join(';'));
+  }
+  const blocoCSV = '\n\n====================================================\n' +
+    'PLANILHA - COPIE AS LINHAS ABAIXO PARA O EXCEL\n' +
+    '====================================================\n' +
+    csvLinhas.join('\n');
+
+  return blocoJSON + blocoCSV;
+}
+
+// Gera File JSON pronto para anexar/compartilhar
+function gerarArquivoJSON(datas, nomeArquivo) {
+  const rows = gerarRowsDashboard(datas);
+  if (!rows.length) return null;
+  // Mescla com histórico local
+  let existentes = [];
+  try { existentes = JSON.parse(localStorage.getItem('dashboard_rondas_data')||'[]'); } catch(e){}
+  const chave = r => r.Tipo+'|'+r.Data+'|'+r.Turno+'|'+(r.Componente||'');
+  const novasChaves = new Set(rows.map(chave));
+  const filtradas = existentes.filter(r => !novasChaves.has(chave(r)));
+  const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
+  localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
+  return new File([JSON.stringify(merged)], nomeArquivo, { type: 'application/json' });
 }
 
 function enviarRelatorioCompleto() {
@@ -2306,7 +2349,8 @@ function enviarRelatorioCompleto() {
   const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
-  mostrarModalRelatorio(assunto, corpo, mailto, false);
+  const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: ['1','2'] }], 'rondas_agrivalle.json');
+  mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON);
 }
 
 function enviarEmailCompleto(date, turnKey, autoAbrir) {
@@ -2374,10 +2418,11 @@ function enviarEmailCompleto(date, turnKey, autoAbrir) {
   const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
-  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir);
+  const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: [turnKey] }], 'rondas_agrivalle.json');
+  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON);
 }
 
-function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir) {
+function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
   let modal = document.getElementById('modal-relatorio-final');
   if (!modal) {
     modal = document.createElement('div');
@@ -2389,7 +2434,7 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir) {
         <div id="modal-rel-titulo" style="font-size:17px;font-weight:700;color:#1a2e4a;text-align:center;margin-bottom:4px;"></div>
         <div id="modal-rel-sub" style="font-size:13px;color:#5d7261;text-align:center;margin-bottom:20px;"></div>
         <button id="modal-rel-enviar" style="display:block;width:100%;padding:15px;background:#1a5e3a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
-          ✉️ Enviar Relatório por E-mail
+          ✉️ Enviar Relatório + Arquivo Dashboard
         </button>
         <button onclick="document.getElementById('modal-relatorio-final').style.display='none'" style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;cursor:pointer;">
           Fechar
@@ -2400,19 +2445,42 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir) {
   const titulo = document.getElementById('modal-rel-titulo');
   const sub = document.getElementById('modal-rel-sub');
   const btnEnviar = document.getElementById('modal-rel-enviar');
-  if (titulo) titulo.textContent = assunto.replace('[RONDA CONCLUÍDA] ', '');
-  if (sub) sub.textContent = 'Toque para abrir o e-mail com o relatório completo';
+  if (titulo) titulo.textContent = assunto.replace('[RONDA CONCLUIDA] ','').replace('[RONDA] ','');
+  if (sub) sub.textContent = arquivoJSON
+    ? 'Envia o relatório com o arquivo rondas_agrivalle.json anexado'
+    : 'Toque para abrir o e-mail com o relatório completo';
   if (btnEnviar) {
-    btnEnviar.onclick = () => {
+    btnEnviar.onclick = async () => {
       modal.style.display = 'none';
-      window.location.href = mailto;
+      // 1. Baixa/salva o arquivo JSON automaticamente
+      if (arquivoJSON) {
+        try {
+          if (window.showSaveFilePicker) {
+            // Android Chrome: deixa escolher pasta
+            const fh = await window.showSaveFilePicker({
+              suggestedName: arquivoJSON.name,
+              types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+            });
+            const w = await fh.createWritable();
+            await w.write(await arquivoJSON.text());
+            await w.close();
+          } else {
+            // iOS/outros: download direto para pasta padrão
+            const url = URL.createObjectURL(arquivoJSON);
+            const a = document.createElement('a');
+            a.href = url; a.download = arquivoJSON.name;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+          }
+        } catch(e) {
+          if (e.name === 'AbortError') return; // usuário cancelou seleção de pasta
+        }
+      }
+      // 2. Abre email já endereçado com relatório no corpo
+      setTimeout(() => { window.location.href = mailto; }, 600);
     };
   }
   modal.style.display = 'flex';
-  if (autoAbrir) {
-    // Aguarda um tick para garantir que o modal está visível antes de qualquer ação
-    setTimeout(() => {}, 0);
-  }
 }
 
 // ===== EMAIL NOK =====
@@ -2617,30 +2685,55 @@ function renderQRCards(query) {
       if (q && !c.nome.toLowerCase().includes(q) && !c.id.toLowerCase().includes(q) && !tData.nome.toLowerCase().includes(q)) continue;
       const card = document.createElement('div');
       card.style.cssText = 'background:white;border:1px solid #d6d1c4;border-radius:12px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;text-align:center;';
-      card.onclick = () => abrirQRFullscreen(c.id, c.nome, c.itens.length, c.icon);
-      const qrWrap = document.createElement('div');
-      qrWrap.style.cssText = 'flex-shrink:0;width:130px;height:130px;display:flex;align-items:center;justify-content:center;';
-      const info = document.createElement('div');
-      info.style.cssText = 'width:100%;';
-      info.innerHTML = `<div style="font-size:15px;font-weight:700;color:#1a2e4a;margin-bottom:2px;line-height:1.3;">${c.icon || ''} ${c.nome}</div>
-        <div style="font-size:11px;color:var(--primary);font-weight:600;">${c.itens.length} item${c.itens.length !== 1 ? 's' : ''} para verificar</div>
-        <div style="font-size:10px;color:#9ca3af;margin-top:2px;font-family:monospace;">${c.id}</div>`;
       card.appendChild(qrWrap);
       card.appendChild(info);
       cards.push(card);
-      const capturedEl = qrWrap, capturedId = c.id;
-      setTimeout(() => { try { new QRCode(capturedEl, { text: 'RONDA:CONJ:' + capturedId, width: 126, height: 126, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {} }, delay);
-      delay += 15;
       anyShown = true;
+      const conjNome = c.nome;
+      const d = delay;
+      setTimeout(() => {
+        try {
+          if (typeof QRCode !== 'undefined') {
+            new QRCode(qrWrap, { text: 'RONDA:SECAO:' + conjNome, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.L });
+          }
+        } catch(e) {}
+      }, d);
+      delay += 60;
     }
-    if (anyShown) { container.appendChild(th); cards.forEach(c => container.appendChild(c)); }
+    if (anyShown) {
+      container.appendChild(th);
+      cards.forEach(cd => container.appendChild(cd));
+    }
   }
-  if (!container.hasChildNodes()) {
-    container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted)">Nenhuma seção encontrada</div>';
+  if (!container.children.length) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;">Nenhum QR code encontrado</div>';
   }
 }
 
-function gerarPDFQRCodes() {
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const jsEl = document.getElementById('js-status');
+    if (jsEl) jsEl.textContent = '✅ App carregado';
+    updateHomeStats();
+    try { document.getElementById('pend-date').value = todayKey(); } catch(e){}
+    try { document.getElementById('export-date').value = todayKey(); } catch(e){}
+    const savedResp = getResp();
+    if (savedResp) { try { document.getElementById('resp-input').value = savedResp; } catch(e){} }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  } catch(e) { console.warn('Init error:', e); }
+});
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+</script>
+</body>
+</html>
+{
   const win = window.open('', '_blank');
   if (!win) { showToast('Permita pop-ups para gerar o PDF'); return; }
   // Coletar seções únicas por nome — um só QR por equipamento (serve para Dia e Noite)

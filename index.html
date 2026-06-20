@@ -487,19 +487,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="export-sub">Relatório completo com tempos, pendências e itens verificados</div>
       </div>
     </div>
-    <div class="export-card" onclick="exportarParaDashboard()" style="padding:24px 20px;">
-      <div class="export-icon" style="font-size:40px;">📊</div>
-      <div class="export-info">
-        <div class="export-title" style="font-size:17px;">Exportar para Dashboard</div>
-        <div class="export-sub">Compartilha ou salva arquivo JSON para o Dashboard</div>
-      </div>
-    </div>
-    <div class="export-card" onclick="copiarJsonParaClipboard()" style="padding:24px 20px;">
-      <div class="export-icon" style="font-size:40px;">📋</div>
-      <div class="export-info">
-        <div class="export-title" style="font-size:17px;">Copiar dados para Dashboard</div>
-        <div class="export-sub">Copia os dados — no Dashboard clique "Colar JSON do App"</div>
-      </div>
+    <div style="display:none">
     </div>
     <input type="date" id="export-date" style="display:none">
   </div>

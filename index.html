@@ -2082,9 +2082,30 @@ function exportarParaDashboard() {
     const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
     localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
 
-    // Gerar arquivo JSON para download/compartilhamento
-    const nomeArquivo = 'rondas_' + todayKey() + '.json';
-    const blob = new Blob([JSON.stringify(merged, null, 2)], { type: 'application/json' });
+    // Gerar arquivo JSON
+    const nomeArquivo = 'rondas_agrivalle.json';
+    const jsonStr = JSON.stringify(merged, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+
+    // Tenta File System Access API (permite salvar direto no OneDrive)
+    if (window.showSaveFilePicker) {
+      try {
+        const fh = await window.showSaveFilePicker({
+          suggestedName: nomeArquivo,
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+        });
+        const writable = await fh.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        showToast('✅ Salvo! No dashboard clique "Importar JSON do App"');
+        return;
+      } catch(fsErr) {
+        if (fsErr.name === 'AbortError') return; // usuário cancelou
+        // Se falhou por outro motivo, cai no download normal
+      }
+    }
+
+    // Fallback: download normal
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -2092,9 +2113,8 @@ function exportarParaDashboard() {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-
     const rondas = rows.filter(r => r.Tipo === 'ronda').length;
-    showToast('✅ Arquivo gerado! Abra no Dashboard com "Importar JSON"');
+    showToast('✅ Arquivo gerado! Mova para OneDrive e importe no Dashboard');
   } catch(e) {
     showToast('❌ Erro: ' + e.message);
   }

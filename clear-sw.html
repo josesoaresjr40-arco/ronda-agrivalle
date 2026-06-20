@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Limpando cache...</title>
+<style>
+  body { font-family: sans-serif; background: #1a3a22; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .box { text-align: center; padding: 32px; }
+  h2 { font-size: 1.4em; margin-bottom: 12px; }
+  p { opacity: 0.8; margin-bottom: 24px; }
+  a { display: inline-block; background: #5d7261; color: #fff; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 1.1em; }
+  #status { font-size: 1.1em; margin: 16px 0; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div id="status">⏳ Limpando cache e service workers...</div>
+  <p id="desc">Aguarde um momento...</p>
+  <a id="btn" href="./index.html" style="display:none">▶ Abrir Aplicativo</a>
+</div>
+<script>
+(async function() {
+  const status = document.getElementById('status');
+  const desc = document.getElementById('desc');
+  const btn = document.getElementById('btn');
+  try {
+    // 1. Desregistrar todos os service workers
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        await reg.unregister();
+      }
+    }
+    // 2. Limpar todos os caches
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (const key of keys) {
+        await caches.delete(key);
+      }
+    }
+    status.textContent = '✅ Cache limpo com sucesso!';
+    desc.textContent = 'Service workers removidos. O aplicativo vai carregar a versão mais nova.';
+    btn.style.display = 'inline-block';
+  } catch (e) {
+    status.textContent = '⚠️ Erro: ' + e.message;
+    desc.textContent = 'Tente limpar o cache manualmente nas configurações do navegador.';
+    btn.style.display = 'inline-block';
+    btn.textContent = '▶ Tentar abrir mesmo assim';
+  }
+})();
+</script>
+</body>
+</html>

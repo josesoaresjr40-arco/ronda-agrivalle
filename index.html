@@ -2395,11 +2395,11 @@ function enviarRelatorioCompleto() {
 
   linhas.push('====================================================');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const corpo = linhas.join('\n');
+  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: ['1','2'] }]);
+  const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
-  // Gera arquivo JSON (inclui os dados do dashboard internamente)
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: ['1','2'] }], 'rondas_agrivalle.json');
-  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo + '\n\n[Arquivo rondas_agrivalle.json baixado automaticamente — importe no Dashboard]');
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   const fotos = coletarFotos(date, ['1','2']);
   mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON, fotos);
 }
@@ -2465,10 +2465,11 @@ function enviarEmailCompleto(date, turnKey, autoAbrir) {
   }
   linhas.push('');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const corpo = linhas.join('\n');
+  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: [turnKey] }]);
+  const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: [turnKey] }], 'rondas_agrivalle.json');
-  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo + '\n\n[Arquivo rondas_agrivalle.json baixado automaticamente — importe no Dashboard]');
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   const fotos = coletarFotos(date, [turnKey]);
   mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos);
 }

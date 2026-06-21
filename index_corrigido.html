@@ -1,0 +1,3114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#5d7261">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- APP_VERSION: 2026-06-20-v7 -->
+<script>
+// Limpeza FORÇADA de todos os SWs e caches antigos — roda UMA vez por sessão
+(function() {
+  var KEY = 'sw_force_cleared_v7';
+  if (sessionStorage.getItem(KEY)) return;
+  sessionStorage.setItem(KEY, '1');
+  if (!('serviceWorker' in navigator)) return;
+  Promise.all([
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+    }),
+    ('caches' in window) ? caches.keys().then(function(keys) {
+      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }) : Promise.resolve()
+  ]).then(function() {
+    location.reload(true);
+  });
+})();
+</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ronda Manutenção">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Ronda de Manutenção</title>
+<script>
+// Carregar bibliotecas externas sem bloquear o app
+function carregarScript(src) {
+  return new Promise(res => {
+    const s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = res; s.onerror = res; // resolve mesmo se falhar
+    document.head.appendChild(s);
+  });
+}
+// Carregar em paralelo após o DOM estar pronto
+// Remove acentos para QR sem caracteres especiais
+  function normalizarNome(s) {
+    return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+  }
+
+  async function carregarJsQR() {
+  if (typeof jsQR !== 'undefined') return;
+  const urls = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+    'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js'
+  ];
+  for (const url of urls) {
+    await carregarScript(url);
+    if (typeof jsQR !== 'undefined') break;
+  }
+}
+window.addEventListener('DOMContentLoaded', () => {
+  carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  carregarJsQR();
+  carregarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
+});
+</script>
+<style>
+  :root {
+    --primary: #5d7261;
+    --primary-light: #fd592d;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg: #f7f7e9;
+    --card: #ffffff;
+    --text: #fd592d;
+    --text-muted: #5d7261;
+    --border: #d6d1c4;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .header, .bottom-nav, .resp-bar { display: none !important; }
+    body { background: #fff; }
+    #screen-qrcodes #qrcodes-list { padding: 0 !important; }
+    #screen-qrcodes #qrcodes-list > div[style*="grid"] > div { page-break-inside: avoid; }
+  }
+  body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  .header { background: var(--primary); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .header-back { background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 4px; line-height: 1; }
+  .header-title { flex: 1; font-size: 17px; font-weight: 600; }
+  .header-action { background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 4px; }
+
+  /* SCREENS */
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: block; }
+
+  /* HOME */
+  .home-hero { background: linear-gradient(135deg, #fd592d 0%, #d9441c 100%); color: white; padding: 32px 20px 24px; text-align: center; }
+  .home-hero h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .home-hero .subtitle { font-size: 14px; opacity: 0.8; }
+  .home-hero .date { font-size: 13px; opacity: 0.7; margin-top: 8px; }
+  .home-content { padding: 20px 16px; }
+  .section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px; }
+  .turn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .turn-card { background: var(--card); border-radius: var(--radius); padding: 16px 8px; text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .turn-card:active { transform: scale(0.97); }
+  .turn-card .turn-icon { font-size: 28px; margin-bottom: 6px; }
+  .turn-card .turn-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .turn-card .turn-time { font-size: 11px; color: var(--text-muted); }
+  .turn-card.t1 { border-color: #fd592d; }
+  .turn-card.t2 { border-color: #5d7261; }
+
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .action-btn { background: var(--card); border-radius: var(--radius); padding: 16px 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border: none; font-size: 14px; font-weight: 600; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); transition: all 0.2s; text-align: left; width: 100%; }
+  .action-btn:active { transform: scale(0.97); }
+  .action-btn .btn-icon { font-size: 24px; }
+
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .stat-card { background: var(--card); border-radius: 10px; padding: 12px 8px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .stat-num { font-size: 24px; font-weight: 700; color: var(--primary-light); }
+  .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* CHECKLIST */
+  .checklist-header { background: var(--primary); color: white; padding: 12px 16px 20px; }
+  .checklist-header .turn-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .checklist-header .progress-bar { background: rgba(255,255,255,0.2); border-radius: 10px; height: 6px; margin-top: 8px; }
+  .checklist-header .progress-fill { background: #4ade80; height: 100%; border-radius: 10px; transition: width 0.3s; }
+  .progress-text { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+
+  .conjunto-card { margin: 0; border-bottom: 1px solid var(--border); }
+  .conjunto-header { background: var(--card); padding: 14px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .conjunto-header:active { background: #f7f7e9; }
+  .conjunto-icon { font-size: 20px; }
+  .conjunto-name { flex: 1; font-size: 15px; font-weight: 600; }
+  .conjunto-badge { background: var(--bg); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .conjunto-badge.done { background: #dcfce7; color: var(--success); }
+  .conjunto-badge.partial { background: #fef3c7; color: var(--warning); }
+  .conjunto-chevron { color: var(--text-muted); transition: transform 0.2s; font-size: 16px; }
+  .conjunto-card.open .conjunto-chevron { transform: rotate(90deg); }
+  .conjunto-items { display: none; background: #fbfbf2; }
+  .conjunto-card.open .conjunto-items { display: block; }
+
+  .item-row { padding: 12px 16px 12px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+  .item-row:last-child { border-bottom: none; }
+  .item-info { flex: 1; }
+  .item-num { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
+  .item-componente { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .item-verificar { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+  .item-tag { display: inline-block; background: #fef3c7; color: #92400e; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-top: 4px; }
+  .item-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; padding-top: 2px; }
+  .btn-ok { background: var(--success); color: white; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .btn-nok { background: var(--danger); color: white; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .btn-ok.active { box-shadow: 0 0 0 3px rgba(22,163,74,0.4); transform: scale(1.05); }
+  .btn-nok.active { box-shadow: 0 0 0 3px rgba(220,38,38,0.4); transform: scale(1.05); }
+  .btn-ok.inactive, .btn-nok.inactive { opacity: 0.3; }
+  .btn-detail { background: var(--bg); border: none; border-radius: 8px; padding: 8px 10px; font-size: 16px; cursor: pointer; }
+  .btn-scan { background: #fd592d; border: none; border-radius: 10px; padding: 10px 13px; font-size: 19px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15); transition: all 0.15s; }
+  .btn-scan:active { transform: scale(0.92); }
+
+  /* ITEM DETAIL */
+  .detail-header { background: var(--card); padding: 16px; border-bottom: 1px solid var(--border); }
+  .detail-conjunto { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+  .detail-componente { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .detail-verificar { font-size: 14px; color: var(--text-muted); line-height: 1.5; background: var(--bg); padding: 10px 12px; border-radius: 8px; border-left: 3px solid var(--primary-light); }
+
+  .detail-content { padding: 16px 16px calc(120px + env(safe-area-inset-bottom)); }
+  .detail-section { margin-bottom: 20px; }
+  .detail-section label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; }
+
+  .status-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .status-btn { padding: 16px; border-radius: var(--radius); border: 2px solid; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .status-btn.ok-btn { background: #dcfce7; border-color: var(--success); color: var(--success); }
+  .status-btn.ok-btn.selected { background: var(--success); color: white; }
+  .status-btn.nok-btn { background: #fee2e2; border-color: var(--danger); color: var(--danger); }
+  .status-btn.nok-btn.selected { background: var(--danger); color: white; }
+
+  textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; background: var(--card); }
+  textarea:focus { outline: none; border-color: var(--primary-light); }
+
+  .photo-area { background: var(--card); border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .photo-area:active { border-color: var(--primary-light); }
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .photo-thumb { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-thumb .del-photo { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .add-photo-btn { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--text-muted); font-size: 14px; }
+  .add-photo-btn span:first-child { font-size: 24px; }
+
+  .save-btn { width: 100%; padding: 16px; background: var(--primary-light); color: white; border: none; border-radius: var(--radius); font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+  .save-btn:active { transform: scale(0.98); }
+  .save-btn.saved { background: var(--success); }
+
+  /* QR SCANNER */
+  .scanner-overlay { background: #000; min-height: 100vh; display: none; flex-direction: column; }
+  .scanner-overlay.active { display: flex; }
+  .scanner-video-wrap { flex: 1; position: relative; }
+  #qr-video { width: 100%; height: 100%; object-fit: cover; }
+  .scanner-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%); width: 240px; height: 240px; border: 3px solid #4ade80; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); }
+  .scanner-line { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #4ade80; animation: scan 2s linear infinite; }
+  @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+  .scanner-hint { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: white; font-size: 14px; opacity: 0.8; }
+  .scanner-close { background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 12px; padding: 12px 24px; font-size: 16px; cursor: pointer; margin: 16px auto; display: block; }
+
+  /* PENDÊNCIAS */
+  .pendencia-item { background: var(--card); margin: 0 0 1px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; border-left: 4px solid var(--danger); }
+  .pendencia-badge { background: #fee2e2; color: var(--danger); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .pendencia-info { flex: 1; }
+  .pendencia-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .pendencia-sub { font-size: 12px; color: var(--text-muted); }
+  .pendencia-obs { font-size: 13px; color: var(--text); margin-top: 6px; background: #fef3c7; padding: 6px 8px; border-radius: 6px; }
+  .pendencia-photo { margin-top: 6px; }
+  .pendencia-photo img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; cursor: pointer; }
+  .empty-state { text-align: center; padding: 60px 20px; }
+  .empty-icon { font-size: 56px; margin-bottom: 16px; }
+  .empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .empty-sub { font-size: 14px; color: var(--text-muted); }
+
+  /* EXPORT */
+  .export-content { padding: 20px 16px; }
+  .export-card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; cursor: pointer; border: 1px solid var(--border); transition: all 0.2s; }
+  .export-card:active { transform: scale(0.98); }
+  .export-icon { font-size: 36px; }
+  .export-info .export-title { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+  .export-info .export-sub { font-size: 13px; color: var(--text-muted); }
+
+  /* HISTORIAL selector */
+  .date-selector { background: var(--card); padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .date-selector label { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+  .date-selector input, .date-selector select { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 14px; font-family: inherit; background: var(--bg); }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.active { display: flex; }
+  .modal { background: var(--card); border-radius: 16px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 17px; font-weight: 700; }
+  .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted); }
+  .modal-body { padding: 20px; }
+  .modal-img { width: 100%; border-radius: 12px; }
+
+  /* MODAL EQUIPAMENTOS (fallback sem câmera) */
+  .equip-search { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; font-size:15px; font-family:inherit; margin-bottom:10px; }
+  .equip-search:focus { outline:none; border-color:var(--primary-light); }
+  .equip-list { max-height:55vh; overflow-y:auto; }
+  .equip-item { padding:12px 14px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; align-items:center; gap:10px; }
+  .equip-item:active { background:var(--bg); }
+  .equip-item-info { flex:1; }
+  .equip-item-nome { font-size:14px; font-weight:600; color:var(--text); }
+  .equip-item-conj { font-size:11px; color:var(--text-muted); margin-top:1px; }
+  .equip-item-id { font-size:10px; color:#94a3b8; font-family:monospace; }
+  .equip-status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .equip-status-dot.ok { background:var(--success); }
+  .equip-status-dot.nok { background:var(--danger); }
+  .equip-status-dot.pending { background:var(--border); }
+
+  /* BOTTOM NAV */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px; cursor: pointer; border: none; background: none; color: var(--text-muted); font-size: 10px; gap: 3px; transition: color 0.2s; }
+  .nav-item.active { color: var(--primary-light); }
+  .nav-item .nav-icon { font-size: 22px; }
+  .nav-badge { position: absolute; top: 2px; right: calc(50% - 18px); background: var(--danger); color: white; border-radius: 10px; padding: 1px 5px; font-size: 10px; font-weight: 700; }
+  .nav-item-wrap { position: relative; }
+
+  /* ESCALA (app) */
+  .nome-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .nome-chip { background: var(--card); border: 2px solid var(--border); border-radius: 12px; padding: 14px 8px; font-weight: 700; font-size: 15px; color: var(--text); cursor: pointer; text-align: center; transition: all 0.15s; }
+  .nome-chip:active { transform: scale(0.97); }
+  .nome-chip.sel { background: #fd592d; border-color: #fd592d; color: #fff; }
+  .nome-chip small { display: block; font-weight: 600; font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .nome-chip.sel small { color: #ffe3d8; }
+  .acomp-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .acomp-bar { background: var(--bg); border-radius: 10px; height: 10px; margin: 8px 0; overflow: hidden; }
+  .acomp-fill { background: #fd592d; height: 100%; border-radius: 10px; transition: width 0.3s; }
+
+  .page-with-nav { padding-bottom: 72px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #fd592d; color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* NOK motivo */
+  .nok-motivo-box { background: #fff5f5; border: 2px solid var(--danger); border-radius: var(--radius); padding: 14px; margin-top: 12px; }
+  .nok-motivo-box label { color: var(--danger); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .nok-motivo-box textarea { border-color: #fca5a5; }
+  .nok-motivo-box textarea:focus { border-color: var(--danger); }
+  .required-hint { font-size: 11px; color: var(--danger); margin-top: 4px; }
+
+  /* Responsável */
+  .resp-bar { background: var(--card); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
+  .resp-bar label { font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+  .resp-bar input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 14px; font-family: inherit; background: var(--bg); }
+  .resp-bar input:focus { outline: none; border-color: var(--primary-light); }
+  .resp-tag { background: #ffe3d8; color: var(--primary-light); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+  /* Email btn */
+  .email-btn { width: 100%; padding: 14px; background: #dc2626; color: white; border: none; border-radius: var(--radius); font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; }
+  .email-btn:active { opacity: 0.85; }
+
+  /* Utilitários */
+  .hidden { display: none !important; }
+  .text-center { text-align: center; }
+  .mt-8 { margin-top: 8px; }
+  .divider { height: 8px; background: var(--bg); }
+</style>
+</head>
+<body>
+
+<!-- ====== TELAS ====== -->
+
+<!-- HOME -->
+<div id="screen-home" class="screen active">
+  <div class="home-hero">
+    <h1>🔧 Ronda de Manutenção</h1>
+    <div class="subtitle">Agrivalle Brasil</div>
+    <div class="date" id="home-date"></div>
+    <div id="js-status" style="margin-top:8px;font-size:11px;background:rgba(255,255,255,0.15);border-radius:8px;padding:3px 10px;display:inline-block">⏳ Carregando...</div>
+  </div>
+  <div class="resp-bar">
+    <label>👷 Responsável:</label>
+    <input type="text" id="resp-input" placeholder="Toque para escolher o nome..." readonly onclick="navTo('screen-escala')" style="cursor:pointer">
+  </div>
+  <div class="home-content page-with-nav">
+    <div class="section-title">Iniciar Ronda</div>
+    <div class="turn-grid">
+      <div class="turn-card t1" onclick="startRonda('1')">
+        <div class="turn-icon">☀️</div>
+        <div class="turn-name">Turno Dia</div>
+        <div class="turn-time">1º Turno</div>
+      </div>
+      <div class="turn-card t2" onclick="startRonda('2')">
+        <div class="turn-icon">🌙</div>
+        <div class="turn-name">Turno Noite</div>
+        <div class="turn-time">2º Turno</div>
+      </div>
+    </div>
+    <div class="section-title">Ações Rápidas</div>
+    <div class="action-row">
+      <button class="action-btn" onclick="showScreen('screen-pendencias')">
+        <span class="btn-icon">⚠️</span>
+        <div><div>Pendências</div><div style="font-size:11px;font-weight:400;color:var(--text-muted)" id="pendencias-count-home"></div></div>
+      </button>
+      <button class="action-btn" onclick="iniciarScanHome()">
+        <span class="btn-icon">📷</span>
+        <div><div>Scan QR</div><div style="font-size:11px;font-weight:400;color:var(--text-muted)">Equipamento</div></div>
+      </button>
+    </div>
+    <div class="action-row">
+      <button class="action-btn" onclick="showScreen('screen-export')">
+        <span class="btn-icon">📊</span>
+        <div><div>Exportar</div><div style="font-size:11px;font-weight:400;color:var(--text-muted)">Excel / PDF</div></div>
+      </button>
+      <button class="action-btn" onclick="clearDayData()">
+        <span class="btn-icon">🗑️</span>
+        <div><div>Limpar Dia</div><div style="font-size:11px;font-weight:400;color:var(--text-muted)">Hoje</div></div>
+      </button>
+    </div>
+    <div class="section-title">Resumo do Dia</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num" id="stat-ok">0</div><div class="stat-label">OK</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-nok" style="color:var(--danger)">0</div><div class="stat-label">NOK</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-pend" style="color:var(--warning)">0</div><div class="stat-label">Pendências</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKLIST -->
+<div id="screen-checklist" class="screen">
+  <div class="header">
+    <button class="header-back" onclick="showScreen('screen-home')">←</button>
+    <div class="header-title" id="checklist-title">Ronda 1º Turno</div>
+    <button id="btn-pausar" onclick="pausarRonda()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:10px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;">⏸ Pausar</button>
+  </div>
+  <div class="checklist-header">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div class="turn-badge" id="checklist-badge">TURNO DIA</div>
+      <span class="resp-tag" id="checklist-resp" style="display:none"></span>
+    </div>
+    <div class="progress-bar" style="margin-top:8px"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-text" id="progress-text">0 de 0 verificados</div>
+  </div>
+  <!-- Lista apenas para referência visual -->
+  <div id="checklist-body" style="padding-bottom:200px">
+  </div>
+  <!-- BOTÃO FIXO: único jeito de acessar um equipamento -->
+  <div style="position:fixed;bottom:calc(62px + env(safe-area-inset-bottom));left:0;right:0;padding:12px 16px;background:white;border-top:2px solid #d6d1c4;z-index:99;">
+    <button onclick="iniciarScanRonda()" style="width:100%;padding:16px;background:#fd592d;color:white;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+      <span style="font-size:24px">📷</span> Escanear QR do Equipamento
+    </button>
+  </div>
+</div>
+
+<!-- ITEM DETAIL -->
+<div id="screen-detail" class="screen">
+  <div class="header">
+    <button class="header-back" id="detail-back-btn" onclick="backToChecklist()">←</button>
+    <div class="header-title">Detalhes</div>
+  </div>
+  <div class="detail-header">
+    <div class="detail-conjunto" id="detail-conjunto"></div>
+    <div class="detail-componente" id="detail-componente"></div>
+    <div class="detail-verificar" id="detail-verificar"></div>
+  </div>
+  <div class="detail-content">
+    <div class="detail-section">
+      <label>Status</label>
+      <div class="status-buttons">
+        <button class="status-btn ok-btn" id="btn-ok" onclick="setStatus('ok')">✅ OK</button>
+        <button class="status-btn nok-btn" id="btn-nok" onclick="setStatus('nok')">❌ NOK</button>
+      </div>
+      <div class="nok-motivo-box hidden" id="nok-motivo-box">
+        <label>🚨 Motivo da não conformidade <span style="color:#ef4444">*obrigatório</span></label>
+        <textarea id="detail-motivo" placeholder="Descreva o problema encontrado (ex: vazamento detectado na bomba, temperatura fora do limite, alarme ativo...)" rows="3"></textarea>
+        <div class="required-hint hidden" id="motivo-hint">⚠️ Preencha o motivo antes de salvar.</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <label>Observações adicionais</label>
+      <textarea id="detail-obs" placeholder="Outras observações, medições ou informações relevantes..." rows="3"></textarea>
+    </div>
+    <div class="detail-section">
+      <label>Fotos</label>
+      <div id="photo-grid" class="photo-grid"></div>
+      <div class="photo-area" onclick="addPhoto()">
+        <div class="add-photo-btn"><span>📷</span><span>Tirar foto / Carregar imagem</span></div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(event)">
+    </div>
+    <button class="save-btn" id="save-btn" onclick="saveItem()">Salvar</button>
+  </div>
+</div>
+
+<!-- QR SCAN -->
+<div id="screen-qr-scan" class="screen">
+  <div class="header">
+    <button class="header-back" onclick="cancelQR()">← Cancelar</button>
+    <div class="header-title">📷 Escanear QR Code</div>
+  </div>
+  <div style="position:relative;background:#000;min-height:calc(100vh - 56px);">
+    <video id="qr-video" autoplay playsinline muted style="width:100%;height:calc(100vh - 56px);object-fit:cover;display:block;"></video>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);width:230px;height:230px;border:3px solid #4ade80;border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,0.5);pointer-events:none;"></div>
+    <div id="qr-secao-nome" style="position:absolute;top:16px;left:16px;right:16px;text-align:center;color:#fff;font-size:15px;font-weight:700;background:rgba(0,0,0,0.5);padding:8px 12px;border-radius:10px;"></div>
+    <div id="qr-status-v" style="position:absolute;bottom:80px;left:0;right:0;text-align:center;color:#4ade80;font-size:14px;">🔍 Aponte o QR code para o quadro verde</div>
+    <button onclick="skipQR()" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:9px 22px;font-size:12px;cursor:pointer;">⚠️ QR danificado — continuar sem escanear</button>
+    <canvas id="qr-canvas" style="display:none"></canvas>
+  </div>
+</div>
+
+<!-- PENDÊNCIAS -->
+<div id="screen-pendencias" class="screen">
+  <div class="header">
+    <button class="header-back" onclick="showScreen('screen-home')">←</button>
+    <div class="header-title">Pendências</div>
+    <button class="header-action" onclick="showScreen('screen-export')">📤</button>
+  </div>
+  <div class="date-selector">
+    <label>Data:</label>
+    <input type="date" id="pend-date" onchange="renderPendencias()">
+  </div>
+
+  <div id="pendencias-list" class="page-with-nav" style="padding-bottom: 80px"></div>
+</div>
+
+<!-- EXPORT -->
+<div id="screen-export" class="screen">
+  <div class="header">
+    <button class="header-back" onclick="showScreen('screen-home')">←</button>
+    <div class="header-title">Relatório</div>
+  </div>
+  <div class="export-content page-with-nav" style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+    <div class="export-card" onclick="showScreen('screen-qrcodes')" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">🔲</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Imprimir QR Codes</div>
+        <div class="export-sub">Gerar etiquetas QR para colar nos equipamentos</div>
+      </div>
+    </div>
+    <div class="export-card" onclick="enviarRelatorioCompleto()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📧</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Enviar Relatório por Email</div>
+        <div class="export-sub">Relatório completo com tempos, pendências e itens verificados</div>
+      </div>
+    </div>
+    <div class="export-card" onclick="document.getElementById('ronda-xlsx-input').click()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📥</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Importar Planilha de Ronda</div>
+        <div class="export-sub" id="import-ronda-status">Carregar dados preenchidos no Excel de atualização</div>
+      </div>
+    </div>
+    <input type="file" id="ronda-xlsx-input" accept=".xlsx,.xls" style="display:none" onchange="importarPlanilhaRonda(this.files[0]);this.value=''">
+    <div style="display:none">
+    </div>
+    <input type="date" id="export-date" style="display:none">
+  </div>
+</div>
+
+<!-- QR CODES PRINT -->
+<div id="screen-qrcodes" class="screen">
+  <div class="header">
+    <button class="header-back" onclick="showScreen('screen-export')">←</button>
+    <div class="header-title">QR Codes dos Equipamentos</div>
+    <button class="header-action" onclick="abrirQRPDF()" style="font-size:14px;font-weight:700;padding:6px 12px;background:rgba(255,255,255,0.2);border-radius:8px;">📄 PDF</button>
+  </div>
+  <div id="qrcodes-list" style="padding: 12px 16px; padding-bottom: 80px; overflow-y:auto;"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<!-- ESCALA -->
+<div id="screen-escala" class="screen">
+  <div class="header">
+    <button class="header-back" onclick="navTo('screen-home')">←</button>
+    <div class="header-title">👷 Escala</div>
+  </div>
+  <div class="export-content page-with-nav">
+    <div class="section-title">Quem está fazendo a ronda?</div>
+    <div class="nome-chips" id="nome-chips"></div>
+    <div class="resp-bar" style="border:1px solid var(--border);border-radius:12px;margin-top:12px">
+      <label>✏️ Outro nome:</label>
+      <input type="text" id="resp-input-escala" placeholder="Digite o nome..." oninput="respDigitado(this.value)" onchange="resetarTempoRonda();renderEscalaApp()">
+    </div>
+    <button class="action-btn" style="margin-top:12px" onclick="document.getElementById('escala-file').click()">
+      <span class="btn-icon">📥</span>
+      <div><div>Importar planilha de escala</div><div style="font-size:11px;font-weight:400;color:var(--text-muted)" id="escala-import-status">Toque para atualizar os nomes quando a escala mudar</div></div>
+    </button>
+    <input type="file" id="escala-file" accept=".xlsx,.xls" style="display:none" onchange="importarEscala(this.files[0]);this.value=''">
+    <div class="section-title" style="margin-top:24px">Acompanhamento de execução — hoje</div>
+    <div id="escala-acomp"></div>
+  </div>
+</div>
+
+<div class="bottom-nav" id="bottom-nav">
+  <button class="nav-item active" onclick="navTo('screen-home')" id="nav-home">
+    <span class="nav-icon">🏠</span><span>Início</span>
+  </button>
+  <button class="nav-item" onclick="navTo('screen-escala')" id="nav-escala">
+    <span class="nav-icon">👷</span><span>Escala</span>
+  </button>
+  <button class="nav-item" onclick="startRonda(currentTurn||'1')" id="nav-ronda" title="Ronda">
+    <span class="nav-icon">📋</span><span>Ronda</span>
+  </button>
+  <div class="nav-item-wrap" style="flex:1">
+    <button class="nav-item" onclick="navTo('screen-pendencias')" id="nav-pend" style="width:100%">
+      <span class="nav-icon">⚠️</span><span>Pendências</span>
+    </button>
+    <span class="nav-badge hidden" id="nav-badge">0</span>
+  </div>
+  <button class="nav-item" onclick="navTo('screen-export')" id="nav-export">
+    <span class="nav-icon">📤</span><span>Exportar</span>
+  </button>
+</div>
+
+<!-- MODAL IMAGE -->
+<div class="modal-overlay" id="modal-img" onclick="closeModal('modal-img')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Foto</h3>
+      <button class="modal-close" onclick="closeModal('modal-img')">×</button>
+    </div>
+    <div class="modal-body" style="padding:12px">
+      <img id="modal-img-src" class="modal-img" src="">
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SELECIONAR EQUIPAMENTO (fallback sem câmera) -->
+<div class="modal-overlay" id="modal-equip">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>🔍 Selecionar Equipamento</h3>
+      <button class="modal-close" onclick="closeModal('modal-equip')">×</button>
+    </div>
+    <div class="modal-body" style="padding:12px 16px 16px">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Câmera indisponível. Busque e selecione o equipamento:</p>
+      <input type="search" id="equip-search" class="equip-search" placeholder="🔍 Buscar equipamento..." oninput="filtrarEquipamentos()" autocomplete="off">
+      <div class="equip-list" id="equip-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR SEÇÃO -->
+<div class="modal-overlay" id="modal-secoes">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>📋 Confirmar Local</h3>
+      <button class="modal-close" onclick="closeModal('modal-secoes')">×</button>
+    </div>
+    <div class="modal-body" style="padding:12px 16px 16px">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Selecione a seção onde você está agora:</p>
+      <div id="lista-secoes" style="max-height:65vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== DADOS DO CHECKLIST =====
+const CHECKLIST_DATA = {
+  "1": {
+    nome: "1º Turno",
+    conjuntos: [
+      { id:"C1", icon:"🖥️", nome:"UTILIDADES", itens:[
+        { id:"1-1.1", comp:"Supervisório principal", ver:"Verificar: alarmes ativos / telas em modo automático / Nível de tanque de água de processo / Tanque de condensado / Pressão de ar comprimido" }
+      ]},
+      { id:"C2", icon:"💧", nome:"SUMP'S", itens:[
+        { id:"1-2.1", comp:"Tanques Fertilizantes (Time Operações)", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.2", comp:"Tanques Fertilizantes (Saída tanques)", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.3", comp:"Tanques Fertilizantes (Porta vestiário)", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.4", comp:"Misturador de pó", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.5", comp:"Limpeza IBC", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.6", comp:"Limpeza carrinhos", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.7", comp:"Planta piloto", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.8", comp:"Auin", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.9", comp:"Caldeiras", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.10", comp:"Recebimento", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.11", comp:"GEDAV", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"1-2.12", comp:"Biorreatores", ver:"Verificar funcionamento da bomba e nível do Sump" }
+      ]},
+      { id:"C3", icon:"🔵", nome:"ABRANDADORES", itens:[
+        { id:"1-3.1", comp:"Água de processo (abrandada) - Utilidades", ver:"Verificar se o equipamento está ligado, funcionando corretamente." },
+        { id:"1-3.2", comp:"Bomba abrandador", ver:"Verificar se há vazamentos na bomba" },
+        { id:"1-3.3", comp:"Tanque de sal", ver:"Verificar nível do tanque de sal (completar) e se existem vazamentos" }
+      ]},
+      { id:"C4", icon:"❄️", nome:"CÂMARA FRIA", itens:[
+        { id:"1-4.1", comp:"Câmara fria 01: Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
+        { id:"1-4.2", comp:"Câmara fria 02: Resfriados", ver:"Verificar se a temperatura está entre 5°C à 10°C" },
+        { id:"1-4.3", comp:"Câmara fria 03 (nova): Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
+        { id:"1-4.4", comp:"Câmaras frias: geral", ver:"Verificar se existe algum defeito visível nas condensadoras na parte externa galpão." },
+        { id:"1-4.5", comp:"Câmaras frias: geral (semanal)", ver:"Verificar se todas as máquinas estão ligando a refrigeração, alterando o set point se necessário no controlador", tag:"SEMANAL" }
+      ]},
+      { id:"C5", icon:"🧊", nome:"CHILLER", itens:[
+        { id:"1-5.1", comp:"Chiller 01 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
+        { id:"1-5.2", comp:"Chiller 01 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
+        { id:"1-5.3", comp:"Chiller 01 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
+        { id:"1-5.4", comp:"Chiller 02 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
+        { id:"1-5.5", comp:"Chiller 02 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
+        { id:"1-5.6", comp:"Chiller 02 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
+        { id:"1-5.7", comp:"Tratamento de água (Chiller)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+      ]},
+      { id:"C6", icon:"🏭", nome:"ETE", itens:[
+        { id:"1-6.1", comp:"Caixas da ETE", ver:"Verificar se não há vazamentos" },
+        { id:"1-6.2", comp:"Caixas da ETE – Nível", ver:"Verificar nível das caixas e se o alarme está ativado" },
+        { id:"1-6.3", comp:"Filtros gravitacional e de pressão", ver:"Na ausência do operador de ETE, realizar a retrolavagem de 15 a 30 min" }
+      ]},
+      { id:"C7", icon:"💨", nome:"LAVADORES DE GASES", itens:[
+        { id:"1-7.1", comp:"Lavadores de gases Biorreator/Fertilizantes", ver:"Verificar nível de água e vazamentos" },
+        { id:"1-7.2", comp:"Lavador de gases CQ/Incubação", ver:"Verificar nível de água e vazamentos. Obs: Manter sempre ligado devido às salas de Incubação." }
+      ]},
+      { id:"C8", icon:"🔥", nome:"CALDEIRAS", itens:[
+        { id:"1-8.1", comp:"Caldeira 1 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
+        { id:"1-8.2", comp:"Caldeira 1 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
+        { id:"1-8.3", comp:"Caldeira 2 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
+        { id:"1-8.4", comp:"Caldeira 2 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
+        { id:"1-8.5", comp:"Tratamento de água (Caldeiras)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+      ]},
+      { id:"C9", icon:"🌬️", nome:"SALA COMPRESSOR", itens:[
+        { id:"1-9.1", comp:"Compressor 1: 125 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
+        { id:"1-9.2", comp:"Compressor 2: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
+        { id:"1-9.3", comp:"Compressor 3: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" }
+      ]},
+      { id:"C10", icon:"🌡️", nome:"SECADORES", itens:[
+        { id:"1-10.1", comp:"Secador 1 – Alarmes", ver:"Verificar existência de alarmes ativos" },
+        { id:"1-10.2", comp:"Secador 1 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
+        { id:"1-10.3", comp:"Secador 1 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
+        { id:"1-10.4", comp:"Secador 1 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" },
+        { id:"1-10.5", comp:"Secador 2 – Alarmes", ver:"Verificar existência de alarmes ativos" },
+        { id:"1-10.6", comp:"Secador 2 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
+        { id:"1-10.7", comp:"Secador 2 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
+        { id:"1-10.8", comp:"Secador 2 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" },
+        { id:"1-10.9", comp:"Secador 3 – Alarmes", ver:"Verificar existência de alarmes ativos" },
+        { id:"1-10.10", comp:"Secador 3 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
+        { id:"1-10.11", comp:"Secador 3 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
+        { id:"1-10.12", comp:"Secador 3 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" }
+      ]},
+      { id:"C11", icon:"🌊", nome:"TORRE DE RESFRIAMENTO", itens:[
+        { id:"1-11.1", comp:"Torre de resfriamento – Nível", ver:"Verificar nível de água" },
+        { id:"1-11.2", comp:"Torre de resfriamento – Vazamentos", ver:"Verificar se existem vazamentos nas bombas" },
+        { id:"1-11.3", comp:"Tratamento de água (Torre)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+      ]},
+      { id:"C12", icon:"⚗️", nome:"AUTOCLAVES", itens:[
+        { id:"1-12.1", comp:"Autoclaves Esterilização – Porta", ver:"Verificar vedação da porta e seu fechamento" },
+        { id:"1-12.2", comp:"Autoclaves Esterilização – Vazamentos", ver:"Verificar vazamentos de água" },
+        { id:"1-12.3", comp:"Autoclaves Esterilização – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" },
+        { id:"1-12.4", comp:"Autoclaves CQI – Corrente", ver:"Verificar corrente elétrica das resistências dos que possuem visor instalado. Deve estar entre 35A a 40A." },
+        { id:"1-12.5", comp:"Autoclaves CQI – Porta", ver:"Verificar vedação da porta e seu fechamento" },
+        { id:"1-12.6", comp:"Autoclaves CQI – Vazamentos", ver:"Verificar vazamentos de água" },
+        { id:"1-12.7", comp:"Autoclaves CQI – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" }
+      ]},
+      { id:"C13", icon:"🚰", nome:"CAIXA D'ÁGUA", itens:[
+        { id:"1-13.1", comp:"Caixa de água 170m³ e 90m³", ver:"Verificar possíveis vazamentos e nível pelo aplicativo de monitoramento" },
+        { id:"1-13.2", comp:"Poço", ver:"Verificar o funcionamento da bomba" }
+      ]},
+      { id:"C14", icon:"🧬", nome:"BIORREATORES", itens:[
+        { id:"1-14.1", comp:"Linha 1 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
+        { id:"1-14.2", comp:"Linha 1 – Ruídos", ver:"Verificar se existem ruídos anormais" },
+        { id:"1-14.3", comp:"Linha 1 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
+        { id:"1-14.4", comp:"Linha 1 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" },
+        { id:"1-14.5", comp:"Linha 2 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
+        { id:"1-14.6", comp:"Linha 2 – Ruídos", ver:"Verificar se existem ruídos anormais" },
+        { id:"1-14.7", comp:"Linha 2 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
+        { id:"1-14.8", comp:"Linha 2 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" },
+        { id:"1-14.9", comp:"Linha 3 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
+        { id:"1-14.10", comp:"Linha 3 – Ruídos", ver:"Verificar se existem ruídos anormais" },
+        { id:"1-14.11", comp:"Linha 3 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
+        { id:"1-14.12", comp:"Linha 3 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" }
+      ]},
+      { id:"C15", icon:"🌿", nome:"BIODEFENSIVOS", itens:[
+        { id:"1-15.1", comp:"Micronizador", ver:"Verificar o funcionamento do equipamento (Vaccum Receiver, Bag Buster e Moinho) e histórico de alarmes" }
+      ]},
+      { id:"C16", icon:"💡", nome:"PCE", itens:[
+        { id:"1-16.1", comp:"Sistema PCE", ver:"Verificar funcionamento dos exaustores e sistema de travamento.", tag:"SEMANAL" }
+      ]}
+    ]
+  },
+  "2": {
+    nome: "Turno Noite",
+    conjuntos: [
+      { id:"D1", icon:"💡", nome:"ILUMINAÇÃO", itens:[
+        { id:"2-1.1", comp:"+AI108", ver:"Chaves seletoras ligadas" },
+        { id:"2-1.2", comp:"Painel de iluminação", ver:"Chaves seletoras ligadas" },
+        { id:"2-1.3", comp:"Refletores", ver:"Verificar se existe algum queimado" },
+        { id:"2-1.4", comp:"Luminárias internas", ver:"Verificar se existem luminárias apagadas ou com defeito" }
+      ]},
+      { id:"D2", icon:"🖥️", nome:"UTILIDADES", itens:[
+        { id:"2-2.1", comp:"Supervisório principal", ver:"Verificar: alarmes ativos / telas em modo automático / Nível de tanque de água de processo / Tanque de condensado / Pressão de ar comprimido" }
+      ]},
+      { id:"D3", icon:"💧", nome:"SUMP'S", itens:[
+        { id:"2-3.1", comp:"Tanques Fertilizantes (Time Operações)", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.2", comp:"Tanques Fertilizantes (Saída tanques)", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.3", comp:"Tanques Fertilizantes (Porta vestiário)", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.4", comp:"Misturador de pó", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.5", comp:"Limpeza IBC", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.6", comp:"Limpeza carrinhos", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.7", comp:"Planta piloto", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.8", comp:"Auin", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.9", comp:"Caldeiras", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.10", comp:"Recebimento", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.11", comp:"GEDAV", ver:"Verificar funcionamento da bomba e nível do Sump" },
+        { id:"2-3.12", comp:"Biorreatores", ver:"Verificar funcionamento da bomba e nível do Sump" }
+      ]},
+      { id:"D4", icon:"🔵", nome:"ABRANDADORES", itens:[
+        { id:"2-4.1", comp:"Água de processo (abrandada) - Utilidades", ver:"Verificar se o equipamento está ligado, funcionando corretamente." },
+        { id:"2-4.2", comp:"Bomba abrandador", ver:"Verificar se há vazamentos na bomba" },
+        { id:"2-4.3", comp:"Tanque de sal", ver:"Verificar nível do tanque de sal (completar) e se existem vazamentos" }
+      ]},
+      { id:"D5", icon:"❄️", nome:"CÂMARA FRIA", itens:[
+        { id:"2-5.1", comp:"Câmara fria 01: Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
+        { id:"2-5.2", comp:"Câmara fria 02: Resfriados", ver:"Verificar se a temperatura está entre 5°C à 10°C" },
+        { id:"2-5.3", comp:"Câmara fria 03 (nova): Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
+        { id:"2-5.4", comp:"Câmaras frias: geral", ver:"Verificar se existe algum defeito visível nas condensadoras na parte externa galpão." },
+        { id:"2-5.5", comp:"Câmaras frias: geral (semanal)", ver:"Verificar se todas as máquinas estão ligando a refrigeração, alterando o set point se necessário no controlador", tag:"SEMANAL" }
+      ]},
+      { id:"D6", icon:"🧊", nome:"CHILLER", itens:[
+        { id:"2-6.1", comp:"Chiller 01 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
+        { id:"2-6.2", comp:"Chiller 01 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
+        { id:"2-6.3", comp:"Chiller 01 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
+        { id:"2-6.4", comp:"Chiller 02 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
+        { id:"2-6.5", comp:"Chiller 02 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
+        { id:"2-6.6", comp:"Chiller 02 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
+        { id:"2-6.7", comp:"Tratamento de água (Chiller)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+      ]},
+      { id:"D7", icon:"🏭", nome:"ETE", itens:[
+        { id:"2-7.1", comp:"Caixas da ETE", ver:"Verificar se não há vazamentos" },
+        { id:"2-7.2", comp:"Caixas da ETE – Nível", ver:"Verificar nível das caixas e se o alarme está ativado" },
+        { id:"2-7.3", comp:"Filtros gravitacional e de pressão", ver:"Na ausência do operador de ETE, realizar a retrolavagem de 15 a 30 min" }
+      ]},
+      { id:"D8", icon:"💨", nome:"LAVADORES DE GASES", itens:[
+        { id:"2-8.1", comp:"Lavadores de gases Biorreator/Fertilizantes", ver:"Verificar nível de água e vazamentos" },
+        { id:"2-8.2", comp:"Lavador de gases CQ/Incubação", ver:"Verificar nível de água e vazamentos. Obs: Manter sempre ligado devido às salas de Incubação." }
+      ]},
+      { id:"D9", icon:"🔥", nome:"CALDEIRAS", itens:[
+        { id:"2-9.1", comp:"Caldeira 1 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
+        { id:"2-9.2", comp:"Caldeira 1 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
+        { id:"2-9.3", comp:"Caldeira 2 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
+        { id:"2-9.4", comp:"Caldeira 2 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
+        { id:"2-9.5", comp:"Tratamento de água (Caldeiras)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+      ]},
+      { id:"D10", icon:"🌬️", nome:"SALA COMPRESSOR", itens:[
+        { id:"2-10.1", comp:"Compressor 1: 125 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
+        { id:"2-10.2", comp:"Compressor 2: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
+        { id:"2-10.3", comp:"Compressor 3: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" }
+      ]},
+      { id:"D11", icon:"🌡️", nome:"SECADORES", itens:[
+        { id:"2-11.1", comp:"Secador 1 – Alarmes", ver:"Verificar existência de alarmes ativos" },
+        { id:"2-11.2", comp:"Secador 1 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
+        { id:"2-11.3", comp:"Secador 1 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
+        { id:"2-11.4", comp:"Secador 1 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" },
+        { id:"2-11.5", comp:"Secador 2 – Alarmes", ver:"Verificar existência de alarmes ativos" },
+        { id:"2-11.6", comp:"Secador 2 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
+        { id:"2-11.7", comp:"Secador 2 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
+        { id:"2-11.8", comp:"Secador 2 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" },
+        { id:"2-11.9", comp:"Secador 3 – Alarmes", ver:"Verificar existência de alarmes ativos" },
+        { id:"2-11.10", comp:"Secador 3 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
+        { id:"2-11.11", comp:"Secador 3 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
+        { id:"2-11.12", comp:"Secador 3 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" }
+      ]},
+      { id:"D12", icon:"🌊", nome:"TORRE DE RESFRIAMENTO", itens:[
+        { id:"2-12.1", comp:"Torre de resfriamento – Nível", ver:"Verificar nível de água" },
+        { id:"2-12.2", comp:"Torre de resfriamento – Vazamentos", ver:"Verificar se existem vazamentos nas bombas" },
+        { id:"2-12.3", comp:"Tratamento de água (Torre)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+      ]},
+      { id:"D13", icon:"⚗️", nome:"AUTOCLAVES", itens:[
+        { id:"2-13.1", comp:"Autoclaves Esterilização – Porta", ver:"Verificar vedação da porta e seu fechamento" },
+        { id:"2-13.2", comp:"Autoclaves Esterilização – Vazamentos", ver:"Verificar vazamentos de água" },
+        { id:"2-13.3", comp:"Autoclaves Esterilização – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" },
+        { id:"2-13.4", comp:"Autoclaves CQI – Corrente", ver:"Verificar corrente elétrica das resistências dos que possuem visor instalado. Deve estar entre 35A a 40A." },
+        { id:"2-13.5", comp:"Autoclaves CQI – Porta", ver:"Verificar vedação da porta e seu fechamento" },
+        { id:"2-13.6", comp:"Autoclaves CQI – Vazamentos", ver:"Verificar vazamentos de água" },
+        { id:"2-13.7", comp:"Autoclaves CQI – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" }
+      ]},
+      { id:"D14", icon:"🚰", nome:"CAIXA D'ÁGUA", itens:[
+        { id:"2-14.1", comp:"Caixa de água 170m³ e 90m³", ver:"Verificar possíveis vazamentos e nível pelo aplicativo de monitoramento" },
+        { id:"2-14.2", comp:"Poço", ver:"Verificar o funcionamento da bomba" }
+      ]},
+      { id:"D15", icon:"🧬", nome:"BIORREATORES", itens:[
+        { id:"2-15.1", comp:"Linha 1 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
+        { id:"2-15.2", comp:"Linha 1 – Ruídos", ver:"Verificar se existem ruídos anormais" },
+        { id:"2-15.3", comp:"Linha 1 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
+        { id:"2-15.4", comp:"Linha 1 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" },
+        { id:"2-15.5", comp:"Linha 2 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
+        { id:"2-15.6", comp:"Linha 2 – Ruídos", ver:"Verificar se existem ruídos anormais" },
+        { id:"2-15.7", comp:"Linha 2 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
+        { id:"2-15.8", comp:"Linha 2 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" },
+        { id:"2-15.9", comp:"Linha 3 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
+        { id:"2-15.10", comp:"Linha 3 – Ruídos", ver:"Verificar se existem ruídos anormais" },
+        { id:"2-15.11", comp:"Linha 3 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
+        { id:"2-15.12", comp:"Linha 3 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" }
+      ]},
+      { id:"D16", icon:"🌿", nome:"BIODEFENSIVOS", itens:[
+        { id:"2-16.1", comp:"Micronizador", ver:"Verificar o funcionamento do equipamento (Vaccum Receiver, Bag Buster e Moinho) e histórico de alarmes" }
+      ]},
+      { id:"D17", icon:"💡", nome:"PCE", itens:[
+        { id:"2-17.1", comp:"Sistema PCE", ver:"Verificar funcionamento dos exaustores e sistema de travamento.", tag:"SEMANAL" }
+      ]}
+    ]
+  }
+};
+// Turno Dia também tem nome ajustado
+CHECKLIST_DATA["1"].nome = "Turno Dia";
+
+// ===== EMAILS DESTINO =====
+const EMAIL_DESTINOS = 'renan.cruz@agrivalle.com.br,jose.soares@agrivalle.com.br';
+// URL do Web App (Google Apps Script) para envio automático de e-mails com anexos.
+// Instruções no arquivo "Configurar Envio Automatico.txt" da pasta Ronda.
+const ENVIO_AUTO_URL = '';
+
+// ===== STORAGE SEGURO (funciona mesmo quando localStorage está bloqueado) =====
+const Store = (() => {
+  const mem = {};
+  let _ls = null;
+  function ls() {
+    if (_ls !== null) return _ls;
+    try { localStorage.setItem('__test__','1'); localStorage.removeItem('__test__'); _ls = localStorage; }
+    catch(e) { _ls = null; }
+    return _ls;
+  }
+  return {
+    get(k)    { try { return (ls() || mem)[k===undefined?0:k] || null; } catch(e) { return mem[k]||null; } },
+    set(k, v) { try { if(ls()) ls().setItem(k,v); else mem[k]=v; } catch(e) { mem[k]=v; } },
+    remove(k) { try { if(ls()) ls().removeItem(k); else delete mem[k]; } catch(e) { delete mem[k]; } }
+  };
+})();
+
+// ===== ESTADO =====
+let currentTurn = '1';
+let currentItemId = null;
+let qrStream = null;
+
+// Tela de retorno após cancelar QR
+let qrReturnScreen = 'screen-checklist';
+let equipEsperado = null; // equipamento selecionado na lista — exige QR correspondente
+let conjEsperado = null;    // seção aguardando leitura do QR
+let pendingItemId = null;   // item a abrir após liberar a seção por QR
+// Seções já liberadas hoje (persistidas por data para sobreviver a refresh)
+function getSecoesLiberadas() {
+  try { return JSON.parse(localStorage.getItem('secoes_lib_' + todayKey()) || '[]'); } catch(e) { return []; }
+}
+function liberarSecao(conjId) {
+  const list = getSecoesLiberadas();
+  if (!list.includes(conjId)) { list.push(conjId); localStorage.setItem('secoes_lib_' + todayKey(), JSON.stringify(list)); }
+}
+function secaoLiberada(conjId) { return getSecoesLiberadas().includes(conjId); }
+
+function todayKey() {
+  return new Date().toISOString().slice(0,10);
+}
+
+// ===== RESPONSÁVEL =====
+// Sempre lê direto do campo HTML — funciona mesmo sem localStorage
+function getResp() {
+  const el = document.getElementById('resp-input');
+  if (el && el.value.trim()) return el.value.trim();
+  return Store.get('resp_nome') || '';
+}
+function saveResp() {
+  const v = document.getElementById('resp-input').value.trim();
+  try { Store.set('resp_nome', v); } catch(e) {}
+}
+
+function loadData(date) {
+  const raw = Store.get('ronda_' + date);
+  try { return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+}
+
+function saveData(date, data) {
+  Store.set('ronda_' + date, JSON.stringify(data));
+}
+
+function getItemData(itemId, date) {
+  const d = loadData(date || todayKey());
+  return d[itemId] || { status: null, obs: '', photos: [] };
+}
+
+function setItemData(itemId, val, date) {
+  const d = loadData(date || todayKey());
+  d[itemId] = val;
+  saveData(date || todayKey(), d);
+}
+
+// ===== NAVEGAÇÃO =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const noNav = ['screen-qr-scan'];
+  document.getElementById('bottom-nav').style.display = noNav.includes(id) ? 'none' : 'flex';
+  if (id === 'screen-home') updateHomeStats();
+  if (id === 'screen-pendencias') {
+    document.getElementById('pend-date').value = todayKey();
+    renderPendencias();
+  }
+  if (id === 'screen-export') document.getElementById('export-date').value = todayKey();
+  if (id === 'screen-qrcodes') { verificarSenhaQR(); return; }
+  if (id === 'screen-escala') renderEscalaApp();
+  updateNavActive(id);
+}
+
+function verificarSenhaQR() {
+  // Verificar se já autenticou nesta sessão
+  if (sessionStorage.getItem('qr_auth') === '1') {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-qrcodes').classList.add('active');
+    document.getElementById('bottom-nav').style.display = '';
+    renderQRCodes();
+    updateNavActive('screen-qrcodes');
+    return;
+  }
+  // Mostrar modal de senha
+  let modal = document.getElementById('modal-senha-qr');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-senha-qr';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:24px;';
+    modal.innerHTML = `
+      <div style="background:white;border-radius:16px;padding:28px 24px;width:100%;max-width:340px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">🔐</div>
+        <div style="font-size:17px;font-weight:700;color:#1a2e4a;margin-bottom:4px;">QR Codes Protegidos</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:20px;">Digite a senha para acessar</div>
+        <input id="senha-qr-input" type="password" placeholder="Senha..." autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:16px;font-family:inherit;margin-bottom:10px;outline:none;"
+          onkeydown="if(event.key==='Enter')confirmarSenhaQR()">
+        <div id="senha-qr-erro" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none;">Senha incorreta</div>
+        <button onclick="confirmarSenhaQR()" style="width:100%;padding:13px;background:#1a5e3a;color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:8px;">Entrar</button>
+        <button onclick="document.getElementById('modal-senha-qr').style.display='none'" style="width:100%;padding:11px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-size:15px;cursor:pointer;">Cancelar</button>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('senha-qr-erro').style.display = 'none';
+  const inp = document.getElementById('senha-qr-input');
+  if (inp) inp.value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => { if (inp) inp.focus(); }, 200);
+}
+
+function confirmarSenhaQR() {
+  const inp = document.getElementById('senha-qr-input');
+  const val = inp ? inp.value : '';
+  // Senha codificada em base64 para não ficar em texto plano
+  if (btoa(val) === btoa('Jiraya561@')) {
+    sessionStorage.setItem('qr_auth', '1');
+    document.getElementById('modal-senha-qr').style.display = 'none';
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-qrcodes').classList.add('active');
+    document.getElementById('bottom-nav').style.display = '';
+    renderQRCodes();
+    updateNavActive('screen-qrcodes');
+  } else {
+    document.getElementById('senha-qr-erro').style.display = 'block';
+    if (inp) { inp.value = ''; inp.focus(); }
+  }
+}
+
+function navTo(id) {
+  showScreen(id);
+}
+
+function updateNavActive(id) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const map = {'screen-home':'nav-home','screen-checklist':'nav-ronda','screen-pendencias':'nav-pend','screen-export':'nav-export','screen-escala':'nav-escala'};
+  if (map[id]) document.getElementById(map[id]).classList.add('active');
+}
+
+// ===== HOME =====
+function updateHomeStats() {
+  const d = loadData(todayKey());
+  let ok = 0, nok = 0;
+  for (const v of Object.values(d)) {
+    if (v.status === 'ok') ok++;
+    if (v.status === 'nok') nok++;
+  }
+  document.getElementById('stat-ok').textContent = ok;
+  document.getElementById('stat-nok').textContent = nok;
+  document.getElementById('stat-pend').textContent = nok;
+  document.getElementById('pendencias-count-home').textContent = nok + ' pendência(s)';
+  const badge = document.getElementById('nav-badge');
+  if (nok > 0) { badge.textContent = nok; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+  const now = new Date();
+  document.getElementById('home-date').textContent = now.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+}
+
+// ===== CHECKLIST =====
+function startRonda(turn) {
+  try {
+  const resp = getResp();
+  if (!resp) {
+    alert('⚠️ Digite seu nome no campo "Responsável" antes de iniciar a ronda.');
+    document.getElementById('resp-input').focus();
+    return;
+  }
+  currentTurn = turn;
+  const tData = CHECKLIST_DATA[turn];
+  document.getElementById('checklist-title').textContent = `Ronda ${tData.nome}`;
+  document.getElementById('checklist-badge').textContent = tData.nome.toUpperCase();
+  const respTag = document.getElementById('checklist-resp');
+  respTag.textContent = '👷 ' + resp;
+  respTag.style.display = '';
+  renderChecklist(turn);
+  showScreen('screen-checklist');
+  } catch(err) { alert('Erro ao iniciar ronda: ' + err.message); }
+}
+
+function renderChecklist(turn) {
+  atualizarBotaoPausa();
+  const tData = CHECKLIST_DATA[turn];
+  const body = document.getElementById('checklist-body');
+  const date = todayKey();
+  const dataDay = loadData(date);
+  body.innerHTML = '';
+  let totalItems = 0, checkedItems = 0;
+  for (const c of tData.conjuntos) {
+    const allDone = c.itens.every(i => dataDay[i.id]?.status);
+    const someDone = c.itens.some(i => dataDay[i.id]?.status);
+    const hasNok = c.itens.some(i => dataDay[i.id]?.status === 'nok');
+    const doneCount = c.itens.filter(i => dataDay[i.id]?.status).length;
+    totalItems += c.itens.length;
+    checkedItems += doneCount;
+    const card = document.createElement('div');
+    card.className = 'conjunto-card' + (hasNok ? '' : '');
+    card.id = 'conjunto-' + c.id;
+    let badgeClass = '', badgeTxt = `${doneCount}/${c.itens.length}`;
+    if (allDone && c.itens.every(i => dataDay[i.id]?.status === 'ok')) { badgeClass = 'done'; }
+    else if (someDone) { badgeClass = 'partial'; }
+    card.innerHTML = `
+      <div class="conjunto-header" onclick="toggleConjunto('${c.id}')">
+        <span class="conjunto-icon">${c.icon}</span>
+        <span class="conjunto-name">${c.nome}</span>
+        <span class="conjunto-badge ${badgeClass}">${badgeTxt}</span>
+        <span class="conjunto-chevron">›</span>
+      </div>
+      <div class="conjunto-items" id="items-${c.id}">
+        ${c.itens.map(item => renderItemRow(item, dataDay[item.id])).join('')}
+      </div>`;
+    body.appendChild(card);
+  }
+  updateProgress(checkedItems, totalItems);
+
+}
+
+function renderItemRow(item, saved) {
+  const st = saved?.status;
+  const icon = st === 'ok' ? '✅' : st === 'nok' ? '❌' : '⭕';
+  const rowBg = st === 'nok' ? 'background:#fff5f5;border-left:3px solid #dc2626;' : st === 'ok' ? 'background:#f0fdf4;border-left:3px solid #16a34a;' : '';
+  return `<div class="item-row" id="row-${item.id}" style="${rowBg}cursor:pointer;" onclick="iniciarScanItem('${item.id}')">
+    <div style="font-size:26px;flex-shrink:0;line-height:1">${icon}</div>
+    <div class="item-info">
+      <div class="item-num">${item.id}</div>
+      <div class="item-componente">${item.comp}</div>
+      <div class="item-verificar">${item.ver}</div>
+      ${item.tag ? `<span class="item-tag">${item.tag}</span>` : ''}
+      ${saved?.motivo ? `<div style="font-size:11px;color:#dc2626;margin-top:3px">🚨 ${saved.motivo}</div>` : ''}
+      ${saved?.obs ? `<div style="font-size:11px;color:#5d7261;margin-top:2px">📝 ${saved.obs}</div>` : ''}
+    </div>
+    <div class="item-actions">
+      <span style="font-size:20px;color:#c8c4b4">›</span>
+    </div>
+  </div>`;
+}
+
+function salvarSecaoAberta(cId) {
+  try { localStorage.setItem('secao_aberta_' + currentTurn, cId || ''); } catch(e) {}
+}
+function getSecaoAberta() {
+  try { return localStorage.getItem('secao_aberta_' + currentTurn) || ''; } catch(e) { return ''; }
+}
+
+function toggleConjunto(cId) {
+  const card = document.getElementById('conjunto-' + cId);
+  if (!secaoLiberada(cId)) {
+    conjEsperado = cId;
+    let conjNome = cId;
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.id === cId) { conjNome = (c.icon ? c.icon + ' ' : '') + c.nome; break; }
+    showToast('📷 Escaneie o QR de: ' + conjNome);
+    abrirCamera();
+    return;
+  }
+  const abrindo = !card.classList.contains('open');
+  card.classList.toggle('open');
+  salvarSecaoAberta(abrindo ? cId : '');
+  if (abrindo) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+}
+
+// quickStatus removido — acesso apenas por QR scan
+
+function findItem(itemId) {
+  for (const t of Object.values(CHECKLIST_DATA))
+    for (const c of t.conjuntos)
+      for (const i of c.itens)
+        if (i.id === itemId) return i;
+  return null;
+}
+
+function findConjunto(itemId) {
+  for (const t of Object.values(CHECKLIST_DATA))
+    for (const c of t.conjuntos)
+      for (const i of c.itens)
+        if (i.id === itemId) return c.id;
+  return null;
+}
+
+function updateProgress(done, total) {
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  const dur = duracaoRonda(currentTurn, todayKey());
+  document.getElementById('progress-text').textContent = `${done} de ${total} verificados (${pct}%)` + (dur ? ` · ⏱ ${dur}` : '');
+}
+
+// ===== ITEM DETAIL =====
+// Só é chamada após scan QR confirmado
+function openDetail(itemId) {
+  currentItemId = itemId;
+  const item = findItem(itemId);
+  if (!item) return;
+  const saved = getItemData(itemId);
+  // Find conjunto name
+  let conjNome = '';
+  for (const t of Object.values(CHECKLIST_DATA))
+    for (const c of t.conjuntos)
+      if (c.itens.find(i => i.id === itemId)) conjNome = c.nome;
+  document.getElementById('detail-conjunto').textContent = conjNome;
+  document.getElementById('detail-componente').textContent = item.comp;
+  document.getElementById('detail-verificar').textContent = item.ver;
+  document.getElementById('detail-obs').value = saved.obs || '';
+  document.getElementById('detail-motivo').value = saved.motivo || '';
+  setDetailStatus(saved.status);
+  renderPhotoGrid(saved.photos || []);
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.textContent = 'Salvar';
+  saveBtn.classList.remove('saved');
+  showScreen('screen-detail');
+}
+
+function setDetailStatus(st) {
+  const ok = document.getElementById('btn-ok');
+  const nok = document.getElementById('btn-nok');
+  ok.classList.toggle('selected', st === 'ok');
+  nok.classList.toggle('selected', st === 'nok');
+  const motivoBox = document.getElementById('nok-motivo-box');
+  if (st === 'nok') {
+    motivoBox.classList.remove('hidden');
+    document.getElementById('detail-motivo').focus();
+  } else {
+    motivoBox.classList.add('hidden');
+    document.getElementById('motivo-hint').classList.add('hidden');
+  }
+}
+
+function setStatus(st) {
+  const saved = getItemData(currentItemId);
+  const newSt = saved.status === st ? null : st;
+  setItemData(currentItemId, {...saved, status: newSt});
+  setDetailStatus(newSt);
+}
+
+function renderPhotoGrid(photos) {
+  const grid = document.getElementById('photo-grid');
+  grid.innerHTML = photos.map((p, i) =>
+    `<div class="photo-thumb"><img src="${p}" onclick="viewPhoto('${p}')" alt="foto"/><button class="del-photo" onclick="deletePhoto(${i})">×</button></div>`
+  ).join('');
+}
+
+function addPhoto() {
+  document.getElementById('photo-input').click();
+}
+
+function comprimirFoto(file, maxW, maxH, qualidade) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+        if (h > maxH) { w = Math.round(w * maxH / h); h = maxH; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function handlePhotos(e) {
+  const files = Array.from(e.target.files);
+  const saved = getItemData(currentItemId);
+  const photos = [...(saved.photos || [])];
+  let loaded = 0;
+  files.forEach(file => {
+    comprimirFoto(file, 1024, 1024, 0.72).then(dataUrl => {
+      photos.push(dataUrl);
+      loaded++;
+      if (loaded === files.length) {
+        try {
+          setItemData(currentItemId, {...saved, photos});
+        } catch(err) {
+          // localStorage cheio: tenta qualidade menor
+          Promise.all(files.map(f => comprimirFoto(f, 640, 640, 0.5))).then(results => {
+            const photosMenor = photos.slice(0, photos.length - files.length).concat(results);
+            try { setItemData(currentItemId, {...saved, photos: photosMenor}); }
+            catch(e2) { showToast('⚠️ Foto muito grande para salvar. Tente uma foto menor.'); }
+          });
+        }
+        renderPhotoGrid(photos);
+      }
+    });
+  });
+  e.target.value = '';
+}
+
+function deletePhoto(idx) {
+  const saved = getItemData(currentItemId);
+  const photos = [...(saved.photos || [])];
+  photos.splice(idx, 1);
+  setItemData(currentItemId, {...saved, photos});
+  renderPhotoGrid(photos);
+}
+
+function viewPhoto(src) {
+  document.getElementById('modal-img-src').src = src;
+  document.getElementById('modal-img').classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function saveItem() {
+  const saved = getItemData(currentItemId);
+  const obs = document.getElementById('detail-obs').value;
+  const motivo = document.getElementById('detail-motivo').value.trim();
+  // Validar motivo obrigatório quando NOK
+  if (saved.status === 'nok' && !motivo) {
+    document.getElementById('motivo-hint').classList.remove('hidden');
+    document.getElementById('detail-motivo').focus();
+    showToast('⚠️ Preencha o motivo da não conformidade');
+    return;
+  }
+  document.getElementById('motivo-hint').classList.add('hidden');
+  setItemData(currentItemId, {...saved, obs, motivo, resp: getResp(), turno: CHECKLIST_DATA[currentTurn].nome});
+  marcarInicioRonda();
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.textContent = '✅ Salvo!';
+  saveBtn.classList.add('saved');
+  showToast('Item salvo com sucesso');
+  // NOK: se houver URL de envio automático, usa ela; senão apenas volta ao checklist.
+  // O e-mail de pendências é enviado ao final da ronda (verificarEnvioAutomatico).
+  if (saved.status === 'nok') {
+    if (ENVIO_AUTO_URL) enviarAlertaNOKAuto(currentItemId);
+    setTimeout(() => backToChecklist(), 900);
+  } else {
+    setTimeout(() => backToChecklist(), 800);
+  }
+  // Ronda do turno completa → envia Excel completo + pendências automaticamente
+  setTimeout(() => verificarEnvioAutomatico(), 1200);
+}
+
+function backToChecklist() {
+  const conjId = findConjunto(currentItemId);
+  const tData = CHECKLIST_DATA[currentTurn];
+  const data = loadData(todayKey());
+
+  // Verifica se ainda tem item pendente NA MESMA SEÇÃO
+  let conjAtual = null;
+  for (const c of tData.conjuntos) if (c.id === conjId) { conjAtual = c; break; }
+  const pendentesNaSecao = conjAtual ? conjAtual.itens.filter(i => !data[i.id]?.status) : [];
+
+  if (pendentesNaSecao.length > 0) {
+    // Ainda tem itens na seção — volta e rola para o próximo
+    renderChecklist(currentTurn);
+    showScreen('screen-checklist');
+    setTimeout(() => {
+      const card = document.getElementById('conjunto-' + conjId);
+      if (card) card.classList.add('open');
+      const proxRow = document.getElementById('row-' + pendentesNaSecao[0].id);
+      if (proxRow) proxRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return;
+  }
+
+  // Seção concluída — encontra o próximo conjunto não concluído
+  let proxConj = null;
+  let passouAtual = false;
+  for (const c of tData.conjuntos) {
+    if (c.id === conjId) { passouAtual = true; continue; }
+    if (!passouAtual) continue;
+    const todosDone = c.itens.every(i => data[i.id]?.status);
+    if (!todosDone) { proxConj = c; break; }
+  }
+
+  renderChecklist(currentTurn);
+  showScreen('screen-checklist');
+
+  if (proxConj) {
+    // Seção concluída — destaca o próximo equipamento e aguarda clique do usuário
+    setTimeout(() => {
+      showToast('✅ ' + (conjAtual?.icon||'') + ' ' + (conjAtual?.nome||'') + ' concluído! Toque em: ' + (proxConj.icon||'') + ' ' + proxConj.nome);
+      const proxCard = document.getElementById('conjunto-' + proxConj.id);
+      if (proxCard) {
+        proxCard.style.transition = 'box-shadow .3s';
+        proxCard.style.boxShadow = '0 0 0 3px #5d7261';
+        proxCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { proxCard.style.boxShadow = ''; }, 3000);
+      }
+    }, 300);
+  } else {
+    // Todos os equipamentos concluídos
+    setTimeout(() => {
+      const card = document.getElementById('conjunto-' + conjId);
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast('🎉 Todos os equipamentos desta ronda concluídos!');
+    }, 150);
+  }
+}
+
+// ===== QR CODE =====
+
+// Chamado pelo botão "📷 Escanear QR" na tela da ronda
+function iniciarScanRonda() {
+  qrReturnScreen = 'screen-checklist';
+  equipEsperado = null;
+  abrirCamera();
+}
+
+// Chamado pelo botão "📷 Scan QR" na home
+function iniciarScanHome() {
+  qrReturnScreen = 'screen-home';
+  equipEsperado = null;
+  abrirCamera();
+}
+
+function cancelQR() {
+  pararCamera();
+  equipEsperado = null;
+  conjEsperado = null;
+  pendingItemId = null;
+  showScreen(qrReturnScreen || 'screen-checklist');
+}
+
+// Ignora o scan do QR (etiqueta danificada)
+function skipQR() {
+  pararCamera();
+  equipEsperado = null;
+  // Se havia seção esperada, libera mesmo sem QR e abre o item pendente
+  if (conjEsperado) {
+    const cId = conjEsperado;
+    const pItem = pendingItemId;
+    conjEsperado = null;
+    pendingItemId = null;
+    liberarSecao(cId);
+    showScreen(qrReturnScreen || 'screen-checklist');
+    if (pItem) setTimeout(() => openDetail(pItem), 200);
+    return;
+  }
+  showScreen(qrReturnScreen || 'screen-checklist');
+  setTimeout(() => abrirModalEquipamentos(), 200);
+}
+
+// Detector de QR nativo (Chrome Android 83+)
+let _barcodeDetector = null;
+let _lastScanTime = 0;
+(async () => {
+  try {
+    if ('BarcodeDetector' in window) {
+      const fmts = await BarcodeDetector.getSupportedFormats();
+      if (fmts.includes('qr_code'))
+        _barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+    }
+  } catch(e) {}
+})();
+
+async function abrirCamera() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-qr-scan').classList.add('active');
+  document.getElementById('bottom-nav').style.display = 'none';
+
+  let nome = '';
+  if (conjEsperado) {
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.id === conjEsperado) { nome = (c.icon ? c.icon + ' ' : '') + c.nome; break; }
+  }
+  const nomeEl = document.getElementById('qr-secao-nome');
+  if (nomeEl) nomeEl.textContent = nome ? 'Seção: ' + nome : '';
+
+  const video = document.getElementById('qr-video');
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    try {
+      const track = qrStream.getVideoTracks()[0];
+      if (track?.getCapabilities) {
+        const caps = track.getCapabilities();
+        if (caps.torch) await track.applyConstraints({ advanced: [{ torch: false }] });
+      }
+    } catch(e) {}
+    video.srcObject = qrStream;
+    await video.play();
+    _lastScanTime = 0;
+    lerQRFrame();
+  } catch(err) {
+    showScreen(qrReturnScreen || 'screen-checklist');
+    showToast('📷 Câmera indisponível');
+  }
+}
+
+async function lerQRFrame() {
+  const video = document.getElementById('qr-video');
+  if (!qrStream || !video) return;
+
+  const now = Date.now();
+  if (now - _lastScanTime < 200) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
+  _lastScanTime = now;
+
+  if (video.readyState >= 2 && video.videoWidth > 0) {
+    // Método 1: BarcodeDetector nativo
+    if (_barcodeDetector) {
+      try {
+        const codes = await _barcodeDetector.detect(video);
+        if (codes.length > 0) { pararCamera(); processarQR(codes[0].rawValue); return; }
+      } catch(e) {}
+    }
+    // Método 2: jsQR via canvas
+    if (typeof jsQR !== 'undefined') {
+      const canvas = document.getElementById('qr-canvas');
+      const vw = video.videoWidth, vh = video.videoHeight;
+      canvas.width = vw; canvas.height = vh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, vw, vh);
+      // Tentativa A: frame completo
+      let imgData = ctx.getImageData(0, 0, vw, vh);
+      let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
+      // Tentativa B: crop central 65% → 512px
+      if (!code) {
+        const tmp = document.createElement('canvas'); tmp.width = 512; tmp.height = 512;
+        const cs = Math.min(vw, vh) * 0.65;
+        const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
+        const tCtx = tmp.getContext('2d');
+        tCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
+        imgData = tCtx.getImageData(0, 0, 512, 512);
+        code = jsQR(imgData.data, 512, 512, { inversionAttempts: 'attemptBoth' });
+      }
+      if (code) { pararCamera(); processarQR(code.data); return; }
+    }
+  }
+  qrAnimFrame = requestAnimationFrame(lerQRFrame);
+}
+
+async function processarFotoQR(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('qr-read-status');
+  const setStatus = (msg) => { if (statusEl) statusEl.innerHTML = msg; };
+  const resetInput = () => { const inp = document.getElementById('qr-file-input'); if (inp) inp.value = ''; };
+
+  setStatus('🔍 Processando imagem...');
+
+  try {
+    // Carregar imagem como HTMLImageElement (mais compatível)
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+    URL.revokeObjectURL(objectUrl);
+
+    // Redimensionar para max 1024px (fotos de celular são muito grandes)
+    const MAX = 1024;
+    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const canvas = document.getElementById('qr-canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // ── Método 1: BarcodeDetector nativo ──
+    if ('BarcodeDetector' in window) {
+      try {
+        const formats = await BarcodeDetector.getSupportedFormats();
+        if (formats.includes('qr_code')) {
+          const detector = new BarcodeDetector({ formats: ['qr_code'] });
+          // Tenta com o canvas redimensionado
+          const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+          const bmp = await createImageBitmap(blob);
+          const codes = await detector.detect(bmp);
+          if (codes.length > 0) { processarQR(codes[0].rawValue); return; }
+          // Tenta com a imagem original
+          const codes2 = await detector.detect(img);
+          if (codes2.length > 0) { processarQR(codes2[0].rawValue); return; }
+        }
+      } catch(e) { /* continua para jsQR */ }
+    }
+
+    // ── Método 2: jsQR com múltiplas tentativas ──
+    if (typeof jsQR !== 'undefined') {
+      // A: imagem inteira redimensionada
+      let imgData = ctx.getImageData(0, 0, w, h);
+      let code = jsQR(imgData.data, w, h, { inversionAttempts: 'attemptBoth' });
+      if (code) { processarQR(code.data); return; }
+
+      // B: crop central 60%
+      const cw = Math.round(w * 0.6), ch = Math.round(h * 0.6);
+      const cx = Math.round((w - cw) / 2), cy = Math.round((h - ch) / 2);
+      const canvas2 = document.createElement('canvas');
+      canvas2.width = 800; canvas2.height = 800;
+      const ctx2 = canvas2.getContext('2d');
+      ctx2.drawImage(canvas, cx, cy, cw, ch, 0, 0, 800, 800);
+      imgData = ctx2.getImageData(0, 0, 800, 800);
+      code = jsQR(imgData.data, 800, 800, { inversionAttempts: 'attemptBoth' });
+      if (code) { processarQR(code.data); return; }
+
+      // C: binarização (alto contraste)
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const g = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+        d[i] = d[i+1] = d[i+2] = g > 128 ? 255 : 0;
+      }
+      ctx2.putImageData(imgData, 0, 0);
+      const imgData2 = ctx2.getImageData(0, 0, 800, 800);
+      code = jsQR(imgData2.data, 800, 800, { inversionAttempts: 'dontInvert' });
+      if (code) { processarQR(code.data); return; }
+    }
+
+    // Falhou — mostrar botão para tentar de novo
+    setStatus('❌ Não foi possível ler o QR.<br><small>Aproxime mais a câmera e fotografe apenas o QR code</small>');
+    resetInput();
+
+  } catch(e) {
+    setStatus('❌ Erro: ' + e.message + '<br>Tente fotografar novamente.');
+    resetInput();
+  }
+}
+
+// ===== MODAL FALLBACK: SELECIONAR EQUIPAMENTO SEM CÂMERA =====
+function abrirModalEquipamentos() {
+  renderListaEquipamentos('');
+  document.getElementById('equip-search').value = '';
+  document.getElementById('modal-equip').classList.add('active');
+  setTimeout(() => document.getElementById('equip-search').focus(), 300);
+}
+
+function filtrarEquipamentos() {
+  const q = document.getElementById('equip-search').value;
+  renderListaEquipamentos(q);
+}
+
+function renderListaEquipamentos(query) {
+  const q = query.toLowerCase().trim();
+  const data = loadData(todayKey());
+  const tData = CHECKLIST_DATA[currentTurn];
+  const list = document.getElementById('equip-list');
+  let html = '';
+  for (const c of tData.conjuntos) {
+    for (const item of c.itens) {
+      if (q && !item.comp.toLowerCase().includes(q) && !c.nome.toLowerCase().includes(q) && !item.id.includes(q)) continue;
+      const st = data[item.id]?.status;
+      const dotClass = st === 'ok' ? 'ok' : st === 'nok' ? 'nok' : 'pending';
+      html += `<div class="equip-item" onclick="selecionarEquipamento('${item.id}')">
+        <div class="equip-status-dot ${dotClass}"></div>
+        <div class="equip-item-info">
+          <div class="equip-item-nome">${item.comp}</div>
+          <div class="equip-item-conj">${c.nome}</div>
+          <div class="equip-item-id">${item.id}</div>
+        </div>
+        <span style="font-size:20px">${st === 'ok' ? '✅' : st === 'nok' ? '❌' : '›'}</span>
+      </div>`;
+    }
+  }
+  if (!html) html = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Nenhum equipamento encontrado</div>';
+  list.innerHTML = html;
+}
+
+function selecionarEquipamento(itemId) {
+  closeModal('modal-equip');
+  openDetail(itemId);
+}
+
+// Toque em item: abre direto (QR é pedido apenas no cabeçalho da seção)
+function iniciarScanItem(itemId) {
+  openDetail(itemId);
+}
+
+// Scanner QR via foto (processarFotoQR)
+
+function pararCamera() {
+  if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+  if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
+}
+
+function processarQR(data) {
+  if (!data.startsWith('RONDA:')) {
+    showToast('QR code não reconhecido. Use os QR codes gerados pelo app.');
+    showScreen(qrReturnScreen || 'screen-checklist');
+    return;
+  }
+  const payload = data.replace('RONDA:', '');
+  // QR por nome da seção (novo formato — um QR por equipamento)
+  if (payload.startsWith('SECAO:')) {
+    const nome = payload.replace('SECAO:', '');
+    abrirSecaoPorNome(nome);
+    return;
+  }
+  // QR por ID (formato antigo — retrocompatibilidade)
+  if (payload.startsWith('CONJ:')) {
+    const conjId = payload.replace('CONJ:', '');
+    abrirSecaoConj(conjId);
+    return;
+  }
+  // QR de ITEM legado (retrocompatibilidade)
+  const itemId = payload;
+  const item = findItem(itemId);
+  if (!item) {
+    showToast('Item não encontrado: ' + itemId);
+    showScreen(qrReturnScreen || 'screen-checklist');
+    return;
+  }
+  equipEsperado = null;
+  for (const [t, td] of Object.entries(CHECKLIST_DATA))
+    for (const c of td.conjuntos)
+      if (c.itens.find(i => i.id === itemId)) { currentTurn = t; break; }
+  if (navigator.vibrate) navigator.vibrate(80);
+  showToast('✅ ' + item.comp);
+  openDetail(itemId);
+}
+
+// Abre a seção correspondente ao QR escaneado e libera todos os itens dela
+function abrirSecaoPorNome(nome) {
+  // Busca em TODOS os turnos; prefere o turno atual — QR único serve dia e noite
+  let encontrado = null;
+  let turnoEncontrado = currentTurn;
+  let fallback = null, turnoFallback = currentTurn;
+  for (const [t, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      if (normalizarNome(c.nome) === normalizarNome(nome)) {
+        if (t === currentTurn) {
+          encontrado = c; turnoEncontrado = t; break;
+        } else if (!fallback) {
+          fallback = c; turnoFallback = t;
+        }
+      }
+    }
+    if (encontrado) break;
+  }
+  if (!encontrado) { encontrado = fallback; turnoEncontrado = turnoFallback; }
+  if (!encontrado) {
+    showToast('❌ Seção "' + nome + '" não encontrada');
+    showScreen(qrReturnScreen || 'screen-checklist');
+    return;
+  }
+  // Valida contra o esperado
+  if (conjEsperado && encontrado.id !== conjEsperado) {
+    let nomeEsperado = conjEsperado;
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos) if (c.id === conjEsperado) { nomeEsperado = c.nome; break; }
+    showToast('❌ QR errado! Escaneie o QR de: ' + nomeEsperado);
+    abrirCamera();
+    return;
+  }
+  conjEsperado = null;
+  currentTurn = turnoEncontrado;
+  liberarSecao(encontrado.id);
+  if (navigator.vibrate) navigator.vibrate(80);
+  renderChecklist(currentTurn);
+  showScreen('screen-checklist');
+  showToast('✅ ' + encontrado.icon + ' ' + encontrado.nome + ' — aberta para inspeção');
+  setTimeout(() => {
+    const el = document.getElementById('conjunto-' + encontrado.id);
+    if (el) { el.classList.add('open'); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }, 120);
+}
+
+function abrirSecaoConj(conjId) {
+  // Validar: se havia seção esperada, só aceita o QR correto
+  if (conjEsperado && conjId !== conjEsperado) {
+    let expNome = conjEsperado;
+    for (const td of Object.values(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.id === conjEsperado) { expNome = c.nome; break; }
+    showToast('❌ QR errado! Escaneie o QR de: ' + expNome);
+    abrirCamera();
+    return;
+  }
+  conjEsperado = null;
+  for (const [t, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      if (c.id === conjId) {
+        liberarSecao(conjId);
+        currentTurn = t;
+        if (navigator.vibrate) navigator.vibrate(80);
+        renderChecklist(t);
+        showScreen('screen-checklist');
+        const item = pendingItemId;
+        pendingItemId = null;
+        // Após liberar, abre a seção no checklist
+        showToast('✅ ' + c.icon + ' ' + c.nome + ' — aberta para inspeção');
+        pendingItemId = null;
+        setTimeout(() => {
+          const el = document.getElementById('conjunto-' + conjId);
+          if (el) { el.classList.add('open'); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        }, 120);
+        return;
+      }
+    }
+  }
+  showToast('Seção não encontrada: ' + conjId);
+  showScreen(qrReturnScreen || 'screen-checklist');
+}
+
+// ===== PENDÊNCIAS =====
+function renderPendencias() {
+  const date = document.getElementById('pend-date').value || todayKey();
+  const data = loadData(date);
+  const list = document.getElementById('pendencias-list');
+  const noks = [];
+  for (const [itemId, val] of Object.entries(data)) {
+    if (val.status === 'nok') {
+      const item = findItem(itemId);
+      let conjNome = '';
+      for (const t of Object.values(CHECKLIST_DATA))
+        for (const c of t.conjuntos)
+          if (c.itens.find(i => i.id === itemId)) conjNome = c.nome;
+      noks.push({ itemId, item, val, conjNome });
+    }
+  }
+  if (noks.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Nenhuma pendência!</div><div class="empty-sub">Todas os itens verificados estão OK para ${date}</div></div>`;
+    return;
+  }
+  list.innerHTML = noks.map(({ itemId, item, val, conjNome }) => `
+    <div class="pendencia-item">
+      <div class="pendencia-badge">NOK</div>
+      <div class="pendencia-info">
+        <div class="pendencia-title">${item?.comp || itemId}</div>
+        <div class="pendencia-sub">${conjNome} · ${itemId}${val.resp ? ' · 👷 ' + val.resp : ''}</div>
+        ${val.motivo ? `<div class="pendencia-obs" style="background:#fee2e2;border-left:3px solid #dc2626">🚨 <strong>Motivo:</strong> ${val.motivo}</div>` : ''}
+        ${val.obs ? `<div class="pendencia-obs">📝 ${val.obs}</div>` : ''}
+        ${val.photos?.length ? `<div class="pendencia-photo">${val.photos.map(p => `<img src="${p}" onclick="viewPhoto('${p}')">`).join('')}</div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+// ===== SALVAR NA PASTA (alimenta o dashboard) =====
+function fsDb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('ronda-fs', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('handles');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function getPastaSalva() {
+  try { const db = await fsDb(); return await new Promise(res => {
+    const rq = db.transaction('handles').objectStore('handles').get('pastaRonda');
+    rq.onsuccess = () => res(rq.result || null); rq.onerror = () => res(null);
+  }); } catch(e) { return null; }
+}
+async function setPastaSalva(h) {
+  try { const db = await fsDb(); await new Promise(res => {
+    const rq = db.transaction('handles', 'readwrite').objectStore('handles').put(h, 'pastaRonda');
+    rq.onsuccess = () => res(); rq.onerror = () => res();
+  }); } catch(e) {}
+}
+async function definirPastaRelatorios() {
+  if (!window.showDirectoryPicker) {
+    showToast('📁 Este aparelho não permite escolher pasta — os relatórios vão para Downloads.');
+    return;
+  }
+  try {
+    const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+    await setPastaSalva(dir);
+    const el = document.getElementById('pasta-status');
+    if (el) el.textContent = '✅ Salvando em: ' + dir.name;
+    showToast('📁 Relatórios serão salvos em: ' + dir.name);
+  } catch (e) {}
+}
+
+async function salvarRelatorio(wb, filename) {
+  if (window.showDirectoryPicker) {
+    try {
+      let dir = await getPastaSalva();
+      if (dir) {
+        let perm = await dir.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') perm = await dir.requestPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') dir = null;
+      }
+      if (!dir) {
+        showToast('📁 Escolha a pasta Ronda (só na 1ª vez)');
+        dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+        await setPastaSalva(dir);
+      }
+      const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const fh = await dir.getFileHandle(filename, { create: true });
+      const w = await fh.createWritable();
+      await w.write(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      await w.close();
+      showToast('📁 Salvo na pasta Ronda: ' + filename);
+      return;
+    } catch (e) { /* cancelou ou sem suporte → cai no download */ }
+  }
+  XLSX.writeFile(wb, filename);
+  showToast('Baixado: ' + filename);
+}
+
+// ===== EXPORTAR EXCEL =====
+function montarWbCompleto(date) {
+  const data = loadData(date);
+  const wb = XLSX.utils.book_new();
+  for (const [turn, tData] of Object.entries(CHECKLIST_DATA)) {
+    const rows = [['Turno', 'Conjunto', 'ID', 'Componente', 'Verificar / Parâmetro', 'Status', 'Motivo NOK', 'Observações', 'Responsável', 'Fotos']];
+    for (const c of tData.conjuntos) {
+      for (const item of c.itens) {
+        const saved = data[item.id] || {};
+        rows.push([
+          tData.nome,
+          c.nome,
+          item.id,
+          item.comp,
+          item.ver,
+          saved.status === 'ok' ? 'OK' : saved.status === 'nok' ? 'NOK' : 'NV',
+          saved.motivo || '',
+          saved.obs || '',
+          saved.resp || getResp(),
+          saved.photos?.length ? saved.photos.length + ' foto(s)' : ''
+        ]);
+      }
+    }
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:12},{wch:22},{wch:12},{wch:30},{wch:50},{wch:6},{wch:35},{wch:35},{wch:20},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, ws, tData.nome);
+  }
+  // Aba Resumo: tempo de execução por turno
+  const resumo = [['RESUMO DA RONDA', ''], ['Data', date], ['Responsável', getResp() || '-'], ['', '']];
+  for (const [turn, tData] of Object.entries(CHECKLIST_DATA)) {
+    resumo.push([tData.nome + ' - Início', horaRonda('inicio', turn, date)]);
+    resumo.push([tData.nome + ' - Fim', horaRonda('fim', turn, date)]);
+    resumo.push([tData.nome + ' - Tempo de execução', duracaoRonda(turn, date) || '-']);
+    resumo.push(['', '']);
+  }
+  const wsR = XLSX.utils.aoa_to_sheet(resumo);
+  wsR['!cols'] = [{wch:35},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, wsR, 'Resumo');
+  return wb;
+}
+
+function exportExcel() {
+  if (typeof XLSX === 'undefined') { showToast('⚠️ Exportação requer internet. Conecte-se e tente novamente.'); return; }
+  const date = document.getElementById('export-date').value || todayKey();
+  salvarRelatorio(montarWbCompleto(date), `Ronda_Manutencao_${date}.xlsx`);
+}
+
+function montarWbPendencias(date) {
+  const data = loadData(date);
+  const wb = XLSX.utils.book_new();
+  const rows = [['Data', 'Responsável', 'Turno', 'Conjunto', 'ID', 'Componente', 'Verificar / Parâmetro', 'Motivo NOK', 'Observações', 'Fotos']];
+  for (const [itemId, val] of Object.entries(data)) {
+    if (val.status !== 'nok') continue;
+    const item = findItem(itemId);
+    let conjNome = '', turnNome = '';
+    for (const [t, td] of Object.entries(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.itens.find(i => i.id === itemId)) { conjNome = c.nome; turnNome = td.nome; }
+    rows.push([date, val.resp||getResp(), turnNome, conjNome, itemId, item?.comp||'', item?.ver||'', val.motivo||'', val.obs||'', val.photos?.length ? val.photos.length + ' foto(s)' : '']);
+  }
+  if (rows.length === 1) return null;
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:20},{wch:14},{wch:22},{wch:12},{wch:30},{wch:50},{wch:35},{wch:35},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Pendências');
+  return wb;
+}
+
+function exportPendencias() {
+  if (typeof XLSX === 'undefined') { showToast('⚠️ Exportação requer internet. Conecte-se e tente novamente.'); return; }
+  const date = document.getElementById('export-date').value || todayKey();
+  const wb = montarWbPendencias(date);
+  if (!wb) { showToast('Nenhuma pendência para exportar'); return; }
+  salvarRelatorio(wb, `Pendencias_${date}.xlsx`);
+}
+
+// ===== PAUSA DA RONDA =====
+function pausarRonda() {
+  const date = todayKey();
+  const turn = currentTurn;
+  const isPausado = localStorage.getItem('ronda_pausada_' + turn + '_' + date) === '1';
+
+  if (!isPausado) {
+    // PAUSAR: salva tempo acumulado e marca como pausada
+    const inicio = +localStorage.getItem('ronda_inicio_' + turn + '_' + date);
+    if (inicio) {
+      const acumulado = (+localStorage.getItem('ronda_acumulado_' + turn + '_' + date) || 0)
+                      + (Date.now() - inicio);
+      localStorage.setItem('ronda_acumulado_' + turn + '_' + date, acumulado);
+      localStorage.setItem('ronda_inicio_' + turn + '_' + date, ''); // zera início
+    }
+    localStorage.setItem('ronda_pausada_' + turn + '_' + date, '1');
+    const btn = document.getElementById('btn-pausar');
+    if (btn) { btn.textContent = '▶ Retomar'; btn.style.background = 'rgba(74,222,128,0.25)'; btn.style.borderColor = '#4ade80'; }
+    showToast('⏸ Ronda pausada — dados salvos');
+  } else {
+    // RETOMAR: reinicia o início do timer
+    localStorage.setItem('ronda_inicio_' + turn + '_' + date, Date.now());
+    localStorage.removeItem('ronda_pausada_' + turn + '_' + date);
+    const btn = document.getElementById('btn-pausar');
+    if (btn) { btn.textContent = '⏸ Pausar'; btn.style.background = 'rgba(255,255,255,0.15)'; btn.style.borderColor = 'rgba(255,255,255,0.4)'; }
+    showToast('▶ Ronda retomada!');
+  }
+}
+
+function atualizarBotaoPausa() {
+  const date = todayKey();
+  const isPausado = localStorage.getItem('ronda_pausada_' + currentTurn + '_' + date) === '1';
+  const btn = document.getElementById('btn-pausar');
+  if (!btn) return;
+  if (isPausado) {
+    btn.textContent = '▶ Retomar'; btn.style.background = 'rgba(74,222,128,0.25)'; btn.style.borderColor = '#4ade80';
+  } else {
+    btn.textContent = '⏸ Pausar'; btn.style.background = 'rgba(255,255,255,0.15)'; btn.style.borderColor = 'rgba(255,255,255,0.4)';
+  }
+}
+
+// ===== TEMPO DE EXECUÇÃO DA RONDA =====
+function marcarInicioRonda() {
+  try {
+    const k = 'ronda_inicio_' + currentTurn + '_' + todayKey();
+    if (!localStorage.getItem(k)) localStorage.setItem(k, Date.now());
+  } catch(e) {}
+}
+function duracaoRonda(turn, date) {
+  const acumulado = +localStorage.getItem('ronda_acumulado_' + turn + '_' + date) || 0;
+  const i = +localStorage.getItem('ronda_inicio_' + turn + '_' + date);
+  const fim = +localStorage.getItem('ronda_fim_' + turn + '_' + date);
+  let ms = acumulado;
+  if (i) {
+    const ate = fim || Date.now();
+    ms += ate - i;
+  }
+  if (!ms) return '';
+  const m = Math.max(1, Math.round(ms / 60000));
+  return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'min' : m + 'min';
+}
+function horaRonda(chave, turn, date) {
+  const t = +localStorage.getItem('ronda_' + chave + '_' + turn + '_' + date);
+  return t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-';
+}
+
+// ===== ENVIO AUTOMÁTICO (sem ação do operador) =====
+async function enviarAlertaNOKAuto(itemId) {
+  if (!ENVIO_AUTO_URL) return false;
+  try {
+    const item = findItem(itemId);
+    const v = getItemData(itemId);
+    let conjNome = '', turnNome = '';
+    for (const [t, td] of Object.entries(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.itens.find(i => i.id === itemId)) { conjNome = c.nome; turnNome = td.nome; }
+    const payload = {
+      tipo: 'alerta_nok', data: todayKey(), destinos: EMAIL_DESTINOS,
+      resp: getResp() || 'Não informado',
+      texto: 'ALERTA DE NÃO CONFORMIDADE - RONDA DE MANUTENÇÃO\n\n' +
+        'Equipamento: ' + (item?.comp || itemId) + ' (' + itemId + ')\n' +
+        'Conjunto: ' + conjNome + ' | Turno: ' + turnNome + '\n' +
+        'Motivo: ' + (v.motivo || '-') + '\n' +
+        (v.obs ? 'Observações: ' + v.obs + '\n' : '') +
+        'Responsável: ' + (getResp() || 'Não informado')
+    };
+    fetch(ENVIO_AUTO_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    showToast('📧 Alerta NOK enviado automaticamente por e-mail');
+    return true;
+  } catch (e) { return false; }
+}
+
+async function verificarEnvioAutomatico() {
+  const date = todayKey();
+  const td = CHECKLIST_DATA[currentTurn];
+  if (!td) return;
+  const flag = 'ronda_enviada_' + currentTurn + '_' + date;
+  if (localStorage.getItem(flag)) return;
+  const data = loadData(date);
+  const completa = td.conjuntos.every(c => c.itens.every(i => data[i.id]?.status));
+  if (!completa) return;
+  try {
+    const kFim = 'ronda_fim_' + currentTurn + '_' + date;
+    if (!localStorage.getItem(kFim)) localStorage.setItem(kFim, Date.now());
+  } catch(e) {}
+  const durTxt = duracaoRonda(currentTurn, date);
+  showToast('🎉 Ronda do turno concluída' + (durTxt ? ' em ⏱ ' + durTxt : '') + '!');
+  localStorage.setItem(flag, '1');
+  if (typeof XLSX !== 'undefined') {
+    const wbC = montarWbCompleto(date);
+    const wbP = montarWbPendencias(date);
+    try {
+      await salvarRelatorio(wbC, `Ronda_Manutencao_${date}.xlsx`);
+      if (wbP) await salvarRelatorio(wbP, `Pendencias_${date}.xlsx`);
+    } catch(e) {}
+    if (ENVIO_AUTO_URL) {
+      try {
+        const payload = {
+          tipo: 'ronda_completa', data: date, turno: td.nome,
+          resp: getResp() || 'Não informado', destinos: EMAIL_DESTINOS,
+          duracao: durTxt, inicio: horaRonda('inicio', currentTurn, date), fim: horaRonda('fim', currentTurn, date),
+          completo: XLSX.write(wbC, { bookType: 'xlsx', type: 'base64' }),
+          pendencias: wbP ? XLSX.write(wbP, { bookType: 'xlsx', type: 'base64' }) : null
+        };
+        await fetch(ENVIO_AUTO_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+        showToast('📧 Relatório enviado automaticamente!');
+        return;
+      } catch (e) { showToast('⚠️ Falha no envio automático — use Exportar manualmente'); }
+    }
+  }
+  // Sem ENVIO_AUTO_URL → abre e-mail completo automaticamente
+  setTimeout(() => enviarEmailCompleto(date, currentTurn, true), 1800);
+}
+
+async function copiarJsonParaClipboard() {
+  // Gera o mesmo JSON do exportarParaDashboard mas copia para clipboard
+  const rows = [];
+  for (let d = 0; d < 60; d++) {
+    const dt = new Date(); dt.setDate(dt.getDate() - d);
+    const dateKey = dt.toISOString().slice(0,10);
+    for (const turnKey of ['1','2']) {
+      const td = CHECKLIST_DATA[turnKey];
+      const data = loadData(dateKey);
+      const temDados = td.conjuntos.some(c => c.itens.some(i => data[i.id]?.status));
+      if (!temDados) continue;
+      const resp = localStorage.getItem('resp_nome') || 'N/I';
+      const inicio = horaRonda('inicio', turnKey, dateKey);
+      const fim = horaRonda('fim', turnKey, dateKey);
+      const dur = duracaoRonda(turnKey, dateKey);
+      let totalOK = 0, totalNOK = 0, total = 0;
+      for (const c of td.conjuntos) {
+        for (const item of c.itens) {
+          total++;
+          const s = data[item.id]?.status;
+          if (s === 'ok') totalOK++;
+          else if (s === 'nok') {
+            totalNOK++;
+            rows.push({ Tipo:'item', Data:dateKey, Turno:td.nome, Responsavel:resp,
+              Conjunto:c.nome, Componente:item.comp, Status:'NOK',
+              Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
+          }
+        }
+      }
+      const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+      rows.push({ Tipo:'ronda', Data:dateKey, Turno:td.nome, Responsavel:resp,
+        Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
+        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+    }
+  }
+  if (!rows.length) { showToast('⚠️ Nenhum dado de ronda encontrado'); return; }
+  let existentes = [];
+  try { existentes = JSON.parse(localStorage.getItem('dashboard_rondas_data')||'[]'); } catch(e){}
+  const chave = r => r.Tipo+'|'+r.Data+'|'+r.Turno+'|'+(r.Componente||'');
+  const novasChaves = new Set(rows.map(chave));
+  const filtradas = existentes.filter(r => !novasChaves.has(chave(r)));
+  const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
+  localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
+  const jsonStr = JSON.stringify(merged);
+  try {
+    await navigator.clipboard.writeText(jsonStr);
+    showToast('✅ Copiado! No Dashboard clique "Colar JSON do App"');
+  } catch(e) {
+    // Fallback: mostrar em textarea para copiar manualmente
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;flex-direction:column;padding:20px;gap:12px;';
+    modal.innerHTML = `<div style="color:#fff;font-weight:700;font-size:16px;">Selecione tudo e copie:</div>
+      <textarea readonly style="flex:1;border-radius:10px;padding:10px;font-size:12px;font-family:monospace;">${jsonStr}</textarea>
+      <button onclick="this.parentNode.remove()" style="background:#dc2626;color:#fff;border:none;border-radius:10px;padding:14px;font-size:16px;font-weight:700;">Fechar</button>`;
+    document.body.appendChild(modal);
+    modal.querySelector('textarea').select();
+  }
+}
+
+async function exportarParaDashboard() {
+  // Lê todos os dados salvos e formata no padrão do dashboard
+  const rows = [];
+  // Varre os últimos 60 dias
+  for (let d = 0; d < 60; d++) {
+    const dt = new Date(); dt.setDate(dt.getDate() - d);
+    const dateKey = dt.toISOString().slice(0,10);
+    for (const turnKey of ['1','2']) {
+      const td = CHECKLIST_DATA[turnKey];
+      const enviada = localStorage.getItem('ronda_enviada_' + turnKey + '_' + dateKey);
+      const data = loadData(dateKey);
+      // Verifica se há dados para este turno/data
+      const temDados = td.conjuntos.some(c => c.itens.some(i => data[i.id]?.status));
+      if (!temDados) continue;
+
+      const resp = (() => { try { return localStorage.getItem('resp_nome') || 'N/I'; } catch(e) { return 'N/I'; } })();
+      const inicio = horaRonda('inicio', turnKey, dateKey);
+      const fim = horaRonda('fim', turnKey, dateKey);
+      const dur = duracaoRonda(turnKey, dateKey);
+      let totalOK = 0, totalNOK = 0, total = 0;
+
+      for (const c of td.conjuntos) {
+        for (const item of c.itens) {
+          total++;
+          const s = data[item.id]?.status;
+          if (s === 'ok') totalOK++;
+          else if (s === 'nok') {
+            totalNOK++;
+            // Linha de item NOK
+            rows.push({
+              Tipo: 'item', Data: dateKey,
+              Turno: td.nome, Responsavel: resp,
+              Conjunto: c.nome, Componente: item.comp,
+              Status: 'NOK',
+              Motivo: data[item.id]?.motivo || '',
+              Obs: data[item.id]?.obs || ''
+            });
+          }
+        }
+      }
+      const pct = total > 0 ? Math.round((totalOK + totalNOK) / total * 100) : 0;
+      // Linha de ronda (resumo)
+      rows.push({
+        Tipo: 'ronda', Data: dateKey,
+        Turno: td.nome, Responsavel: resp,
+        Inicio: inicio || '', Termino: fim || '',
+        Duracao: dur || '',
+        OK: totalOK, NOK: totalNOK,
+        Total: total, Pct: pct
+      });
+    }
+  }
+
+  if (!rows.length) { showToast('⚠️ Nenhum dado de ronda encontrado'); return; }
+
+  try {
+    // Salvar no localStorage (funciona se dashboard estiver no mesmo browser)
+    let existentes = [];
+    try { existentes = JSON.parse(localStorage.getItem('dashboard_rondas_data') || '[]'); } catch(e) {}
+    const chave = r => r.Tipo + '|' + r.Data + '|' + r.Turno + '|' + (r.Componente || '');
+    const novasChaves = new Set(rows.map(chave));
+    const filtradas = existentes.filter(r => !novasChaves.has(chave(r)));
+    const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
+    localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
+
+    // Gerar arquivo JSON
+    const nomeArquivo = 'rondas_agrivalle.json';
+    const jsonStr = JSON.stringify(merged, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const arquivo = new File([jsonStr], nomeArquivo, { type: 'application/json' });
+
+    // 1º: File System Access API — salva direto na pasta (Android Chrome + Chrome desktop)
+    if (window.showSaveFilePicker) {
+      try {
+        const fh = await window.showSaveFilePicker({
+          suggestedName: nomeArquivo,
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+        });
+        const writable = await fh.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        showToast('✅ Salvo! No dashboard clique "Importar JSON do App"');
+        return;
+      } catch(fsErr) {
+        if (fsErr.name === 'AbortError') return; // usuário cancelou
+      }
+    }
+
+    // 2º: Web Share API — abre tela de compartilhamento (iOS Safari)
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({ files: [arquivo], title: 'Rondas Agrivalle' });
+        showToast('✅ Compartilhado! Salve no OneDrive e importe no Dashboard');
+        return;
+      } catch(shareErr) {
+        if (shareErr.name === 'AbortError') return;
+      }
+    }
+
+    // 3º: Download normal (fallback)
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nomeArquivo;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    showToast('✅ Arquivo baixado! Mova para OneDrive e importe no Dashboard');
+  } catch(e) {
+    showToast('❌ Erro: ' + e.message);
+  }
+}
+
+// Gera array de rows para dashboard a partir de datas/turnos
+function gerarRowsDashboard(datas) {
+  const rows = [];
+  for (const { date, turnKeys } of datas) {
+    for (const turnKey of turnKeys) {
+      const td = CHECKLIST_DATA[turnKey];
+      if (!td) continue;
+      const data = loadData(date);
+      const temDados = td.conjuntos.some(c => c.itens.some(i => data[i.id]?.status));
+      if (!temDados) continue;
+      const resp = localStorage.getItem('resp_nome') || 'N/I';
+      const inicio = horaRonda('inicio', turnKey, date);
+      const fim = horaRonda('fim', turnKey, date);
+      const dur = duracaoRonda(turnKey, date);
+      let totalOK = 0, totalNOK = 0, total = 0;
+      for (const c of td.conjuntos) {
+        for (const item of c.itens) {
+          total++;
+          const s = data[item.id]?.status;
+          if (s === 'ok') totalOK++;
+          else if (s === 'nok') {
+            totalNOK++;
+            rows.push({ Tipo:'item', Data:date, Turno:td.nome, Responsavel:resp,
+              Conjunto:c.nome, Componente:item.comp, Status:'NOK',
+              Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
+          }
+        }
+      }
+      const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+      rows.push({ Tipo:'ronda', Data:date, Turno:td.nome, Responsavel:resp,
+        Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
+        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+    }
+  }
+  return rows;
+}
+
+// Gera blocos de texto (JSON + CSV) para incluir no corpo do email
+function gerarBlocoDashboard(datas) {
+  const rows = gerarRowsDashboard(datas);
+  if (!rows.length) return '';
+
+  const blocoJSON = '\n\n====================================================\n' +
+    'DADOS DASHBOARD - NAO ALTERE ESTE BLOCO\n' +
+    '====================================================\n' +
+    '###DASHBOARD_JSON_START###\n' +
+    JSON.stringify(rows) + '\n' +
+    '###DASHBOARD_JSON_END###';
+
+  const csvEscape = v => {
+    const s = String(v === undefined || v === null ? '' : v);
+    return s.includes(';') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const cab = ['Tipo','Data','Turno','Responsavel','Conjunto','Componente','Status','Motivo','Obs','Inicio','Termino','Duracao','OK','NOK','Total','Pct%'];
+  const csvLinhas = [cab.join(';')];
+  for (const r of rows) {
+    csvLinhas.push([
+      r.Tipo, r.Data, r.Turno, r.Responsavel,
+      r.Conjunto||'', r.Componente||'', r.Status||'', r.Motivo||'', r.Obs||'',
+      r.Inicio||'', r.Termino||'', r.Duracao||'',
+      r.OK!=null?r.OK:'', r.NOK!=null?r.NOK:'', r.Total!=null?r.Total:'', r.Pct!=null?r.Pct:''
+    ].map(csvEscape).join(';'));
+  }
+  const blocoCSV = '\n\n====================================================\n' +
+    'PLANILHA - COPIE AS LINHAS ABAIXO PARA O EXCEL\n' +
+    '====================================================\n' +
+    csvLinhas.join('\n');
+
+  return blocoJSON + blocoCSV;
+}
+
+// Gera File JSON pronto para anexar/compartilhar
+function gerarArquivoJSON(datas, nomeArquivo) {
+  const rows = gerarRowsDashboard(datas);
+  if (!rows.length) return null;
+  // Mescla com histórico local
+  let existentes = [];
+  try { existentes = JSON.parse(localStorage.getItem('dashboard_rondas_data')||'[]'); } catch(e){}
+  const chave = r => r.Tipo+'|'+r.Data+'|'+r.Turno+'|'+(r.Componente||'');
+  const novasChaves = new Set(rows.map(chave));
+  const filtradas = existentes.filter(r => !novasChaves.has(chave(r)));
+  const merged = [...filtradas, ...rows].sort((a,b) => a.Data > b.Data ? 1 : -1);
+  localStorage.setItem('dashboard_rondas_data', JSON.stringify(merged));
+  return new File([JSON.stringify(merged)], nomeArquivo, { type: 'application/json' });
+}
+
+function enviarRelatorioCompleto() {
+  const date = todayKey();
+  const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+  const resp = getResp() || 'Não informado';
+  let linhas = [];
+  linhas.push('RELATORIO COMPLETO - RONDA DE MANUTENCAO AGRIVALLE');
+  linhas.push('====================================================');
+  linhas.push('Data: ' + dataFmt);
+  linhas.push('Responsavel: ' + resp);
+  linhas.push('');
+
+  for (const turnKey of ['1', '2']) {
+    const td = CHECKLIST_DATA[turnKey];
+    if (!td) continue;
+    const data = loadData(date);
+    const inicio = horaRonda('inicio', turnKey, date);
+    const fim = horaRonda('fim', turnKey, date);
+    const durTxt = duracaoRonda(turnKey, date);
+    let totalOK = 0, totalNOK = 0, totalTotal = 0;
+    const noks = [];
+
+    linhas.push('====================================================');
+    linhas.push('TURNO: ' + td.nome.toUpperCase());
+    if (inicio) linhas.push('Inicio: ' + inicio);
+    if (fim) linhas.push('Fim: ' + fim);
+    if (durTxt) linhas.push('Duracao: ' + durTxt);
+    linhas.push('');
+
+    for (const c of td.conjuntos) {
+      let secOK = 0, secNOK = 0;
+      for (const item of c.itens) {
+        totalTotal++;
+        const d = data[item.id];
+        if (d?.status === 'ok') { totalOK++; secOK++; }
+        else if (d?.status === 'nok') {
+          totalNOK++; secNOK++;
+          noks.push({ item, val: d, conjNome: c.nome });
+        }
+      }
+      const allOK = secOK === c.itens.length && secNOK === 0;
+      linhas.push((allOK ? '[OK]  ' : secNOK > 0 ? '[NOK] ' : '[---] ') + c.nome + ' (' + secOK + '/' + c.itens.length + (secNOK ? ', ' + secNOK + ' NOK' : '') + ')');
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.status === 'nok') {
+          linhas.push('   X ' + item.comp + (d.motivo ? ' -> ' + d.motivo : ''));
+          if (d.obs) linhas.push('     Obs: ' + d.obs);
+        }
+      }
+    }
+    linhas.push('');
+    linhas.push('RESUMO ' + td.nome.toUpperCase() + ': ' + totalOK + ' OK | ' + totalNOK + ' NOK | ' + totalTotal + ' total');
+    if (noks.length > 0) {
+      linhas.push('');
+      linhas.push('PENDENCIAS NOK:');
+      noks.forEach((n, i) => {
+        linhas.push((i + 1) + '. [' + n.conjNome + '] ' + n.item.comp);
+        if (n.val.motivo) linhas.push('   Motivo: ' + n.val.motivo);
+        if (n.val.obs) linhas.push('   Obs: ' + n.val.obs);
+      });
+    }
+    linhas.push('');
+  }
+
+  linhas.push('====================================================');
+  linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
+  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: ['1','2'] }]);
+  const corpo = linhas.join('\n') + blocoJSON;
+  const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: ['1','2'] }], 'rondas_agrivalle.json');
+  mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON);
+}
+
+function enviarEmailCompleto(date, turnKey, autoAbrir) {
+  const td = CHECKLIST_DATA[turnKey];
+  if (!td) return;
+  const data = loadData(date);
+  const resp = getResp() || 'Não informado';
+  const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+  const durTxt = duracaoRonda(turnKey, date);
+  const inicio = horaRonda('inicio', turnKey, date);
+  const fim = horaRonda('fim', turnKey, date);
+  let totalOK = 0, totalNOK = 0, totalTotal = 0;
+  const noks = [];
+  let linhas = [];
+  linhas.push('RELATORIO COMPLETO - RONDA DE MANUTENCAO AGRIVALLE');
+  linhas.push('====================================================');
+  linhas.push('');
+  linhas.push('Data: ' + dataFmt);
+  linhas.push('Turno: ' + td.nome);
+  linhas.push('Responsavel: ' + resp);
+  if (inicio) linhas.push('Inicio: ' + inicio);
+  if (fim) linhas.push('Fim: ' + fim);
+  if (durTxt) linhas.push('Duracao: ' + durTxt);
+  linhas.push('');
+  linhas.push('------------------------------');
+  linhas.push('');
+  for (const c of td.conjuntos) {
+    let secOK = 0, secNOK = 0;
+    for (const item of c.itens) {
+      totalTotal++;
+      const d = data[item.id];
+      if (d?.status === 'ok') { totalOK++; secOK++; }
+      else if (d?.status === 'nok') {
+        totalNOK++; secNOK++;
+        noks.push({ item, val: d, conjNome: c.nome });
+      }
+    }
+    const allOK = secOK === c.itens.length && secNOK === 0;
+    linhas.push((allOK ? '[OK] ' : secNOK > 0 ? '[NOK] ' : '[---] ') + c.nome + ' (' + secOK + '/' + c.itens.length + (secNOK ? ', ' + secNOK + ' NOK' : '') + ')');
+    if (secNOK > 0) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.status === 'nok') {
+          linhas.push('  X ' + item.comp + (d.motivo ? ' -> ' + d.motivo : ''));
+          if (d.obs) linhas.push('    Obs: ' + d.obs);
+        }
+      }
+    }
+  }
+  linhas.push('');
+  linhas.push('------------------------------');
+  linhas.push('RESUMO: ' + totalOK + ' OK | ' + totalNOK + ' NOK | ' + totalTotal + ' total');
+  if (noks.length > 0) {
+    linhas.push('');
+    linhas.push('PENDENCIAS NOK:');
+    noks.forEach((n, i) => {
+      linhas.push((i + 1) + '. [' + n.conjNome + '] ' + n.item.comp);
+      if (n.val.motivo) linhas.push('   Motivo: ' + n.val.motivo);
+      if (n.val.obs) linhas.push('   Obs: ' + n.val.obs);
+    });
+  }
+  linhas.push('');
+  linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
+  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: [turnKey] }]);
+  const corpo = linhas.join('\n') + blocoJSON;
+  const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: [turnKey] }], 'rondas_agrivalle.json');
+  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON);
+}
+
+function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
+  let modal = document.getElementById('modal-relatorio-final');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-relatorio-final';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:flex-end;justify-content:center;';
+    modal.innerHTML = `
+      <div style="background:white;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;box-sizing:border-box;">
+        <div style="font-size:22px;text-align:center;margin-bottom:8px;">🎉</div>
+        <div id="modal-rel-titulo" style="font-size:17px;font-weight:700;color:#1a2e4a;text-align:center;margin-bottom:4px;"></div>
+        <div id="modal-rel-sub" style="font-size:13px;color:#5d7261;text-align:center;margin-bottom:20px;"></div>
+        <button id="modal-rel-enviar" style="display:block;width:100%;padding:15px;background:#1a5e3a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
+          ✉️ Enviar Relatório + Arquivo Dashboard
+        </button>
+        <button onclick="document.getElementById('modal-relatorio-final').style.display='none'" style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;cursor:pointer;">
+          Fechar
+        </button>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  const titulo = document.getElementById('modal-rel-titulo');
+  const sub = document.getElementById('modal-rel-sub');
+  const btnEnviar = document.getElementById('modal-rel-enviar');
+  if (titulo) titulo.textContent = assunto.replace('[RONDA CONCLUIDA] ','').replace('[RONDA] ','');
+  if (sub) sub.textContent = arquivoJSON
+    ? 'Envia o relatório com o arquivo rondas_agrivalle.json anexado'
+    : 'Toque para abrir o e-mail com o relatório completo';
+  if (btnEnviar) {
+    btnEnviar.onclick = async () => {
+      modal.style.display = 'none';
+      // 1. Baixa/salva o arquivo JSON automaticamente
+      if (arquivoJSON) {
+        try {
+          if (window.showSaveFilePicker) {
+            // Android Chrome: deixa escolher pasta
+            const fh = await window.showSaveFilePicker({
+              suggestedName: arquivoJSON.name,
+              types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+            });
+            const w = await fh.createWritable();
+            await w.write(await arquivoJSON.text());
+            await w.close();
+          } else {
+            // iOS/outros: download direto para pasta padrão
+            const url = URL.createObjectURL(arquivoJSON);
+            const a = document.createElement('a');
+            a.href = url; a.download = arquivoJSON.name;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+          }
+        } catch(e) {
+          if (e.name === 'AbortError') return; // usuário cancelou seleção de pasta
+        }
+      }
+      // 2. Abre email já endereçado com relatório no corpo
+      setTimeout(() => { window.location.href = mailto; }, 600);
+    };
+  }
+  modal.style.display = 'flex';
+}
+
+// ===== EMAIL NOK =====
+function enviarEmailNOK() {
+  const date = document.getElementById('pend-date')?.value || todayKey();
+  const data = loadData(date);
+  const resp = getResp() || 'Não informado';
+  const noks = [];
+  for (const [itemId, val] of Object.entries(data)) {
+    if (val.status !== 'nok') continue;
+    const item = findItem(itemId);
+    let conjNome = '', turnNome = '';
+    for (const [t, td] of Object.entries(CHECKLIST_DATA))
+      for (const c of td.conjuntos)
+        if (c.itens.find(i => i.id === itemId)) { conjNome = c.nome; turnNome = td.nome; }
+    noks.push({ item, val, conjNome, turnNome, itemId });
+  }
+  if (noks.length === 0) {
+    showToast('Nenhuma pendência NOK para enviar');
+    return;
+  }
+  const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+  let corpo = 'RELATÓRIO DE PENDÊNCIAS - RONDA DE MANUTENÇÃO\n';
+  corpo += '==================================================\n';
+  corpo += 'Data: ' + dataFmt + '\n';
+  corpo += 'Responsável: ' + resp + '\n';
+  corpo += 'Total de pendências: ' + noks.length + '\n\n';
+  noks.forEach((n, i) => {
+    corpo += (i+1) + '. [' + n.turnNome + '] ' + n.conjNome + ' - ' + (n.item?.comp || n.itemId) + '\n';
+    corpo += '   Verificação: ' + (n.item?.ver || '') + '\n';
+    corpo += '   Motivo: ' + (n.val.motivo || '(não informado)') + '\n';
+    if (n.val.obs) corpo += '   Obs: ' + n.val.obs + '\n';
+    corpo += '\n';
+  });
+  corpo += '\nGerado pelo App de Ronda de Manutenção - Agrivalle Brasil';
+  const assunto = '[NOK] Pendências Ronda Manutenção - ' + dataFmt + ' - ' + resp;
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  window.location.href = mailto;
+  showToast('Abrindo app de e-mail...');
+}
+
+// ===== ESCALA (mantenedores) =====
+const ESCALA_NOMES_PADRAO = [
+  { nome: 'CARLOS', turno: '1º Turno · 06:00-18:00' },
+  { nome: 'RONALDO', turno: '1º Turno · 06:00-18:00' },
+  { nome: 'SERGIO', turno: '2º Turno · 18:00-06:00' },
+  { nome: 'JOAO', turno: '2º Turno · 18:00-06:00' }
+];
+function getEscalaNomes() {
+  try {
+    const s = localStorage.getItem('escala_nomes');
+    if (s) { const a = JSON.parse(s); if (Array.isArray(a) && a.length) return a; }
+  } catch(e) {}
+  return ESCALA_NOMES_PADRAO;
+}
+
+// Importa a planilha Escala_Manutencao (aba RESUMO ANUAL) e atualiza os nomes
+function importarEscala(file) {
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { showToast('⚠️ Importação requer internet. Tente novamente.'); return; }
+  const fr = new FileReader();
+  fr.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const nomes = [];
+      const sn = wb.SheetNames.find(s => /resumo/i.test(s)) || wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 });
+      for (const r of rows) {
+        if (!r || !r[0] || !r[1]) continue;
+        const nome = r[0].toString().trim(), turno = r[1].toString().trim();
+        if (!/TURNO/i.test(turno) || /COLABORADOR|LEGENDA/i.test(nome)) continue;
+        nomes.push({ nome: nome.toUpperCase(), turno: turno + (r[2] ? ' · ' + r[2] : '') });
+      }
+      if (!nomes.length) { showToast('⚠️ Nomes não encontrados. Use a planilha Escala_Manutencao (aba RESUMO ANUAL).'); return; }
+      localStorage.setItem('escala_nomes', JSON.stringify(nomes));
+      const st = document.getElementById('escala-import-status');
+      if (st) st.textContent = '✅ Importada: ' + nomes.map(n => n.nome).join(', ');
+      renderEscalaApp();
+      showToast('📥 Escala atualizada: ' + nomes.length + ' colaborador(es)');
+    } catch (err) { showToast('⚠️ Erro ao ler a planilha.'); }
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+// Reinicia o cronômetro dos turnos ainda não concluídos hoje
+function resetarTempoRonda() {
+  try {
+    const date = todayKey(); const data = loadData(date);
+    for (const [turn, td] of Object.entries(CHECKLIST_DATA)) {
+      const completa = td.conjuntos.every(c => c.itens.every(i => data[i.id]?.status));
+      if (!completa) {
+        localStorage.removeItem('ronda_inicio_' + turn + '_' + date);
+        localStorage.removeItem('ronda_fim_' + turn + '_' + date);
+      }
+    }
+  } catch(e) {}
+}
+
+function selecionarNome(n) {
+  const anterior = (getResp() || '').trim().toUpperCase();
+  const inp = document.getElementById('resp-input');
+  if (inp) inp.value = n;
+  saveResp();
+  const inpE = document.getElementById('resp-input-escala');
+  if (inpE) inpE.value = '';
+  if (anterior && anterior !== n.toUpperCase()) {
+    resetarTempoRonda();
+  }
+  renderEscalaApp();
+  // Detectar turno pelo nome na escala e abrir ronda correspondente
+  const NOMES = getEscalaNomes();
+  const entrada = NOMES.find(p => p.nome === n);
+  if (entrada) {
+    const turnoStr = entrada.turno || '';
+    // 1º Turno → turn '1'  |  2º Turno (noite) → turn '2'
+    const turnKey = /2[ºo]?\s*turno/i.test(turnoStr) ? '2' : '1';
+    currentTurn = turnKey;
+    showToast('👷 ' + n + ' · ' + CHECKLIST_DATA[turnKey].nome);
+    setTimeout(() => {
+      renderChecklist(turnKey);
+      showScreen('screen-checklist');
+    }, 250);
+  } else {
+    showToast('👷 Responsável: ' + n);
+  }
+}
+
+function respDigitado(v) {
+  const inp = document.getElementById('resp-input');
+  if (inp) inp.value = v;
+  saveResp();
+  const atual = v.trim().toUpperCase();
+  document.querySelectorAll('.nome-chip').forEach(c => c.classList.toggle('sel', c.dataset.nome === atual));
+}
+
+function renderEscalaApp() {
+  const NOMES = getEscalaNomes();
+  const atual = (getResp() || '').trim().toUpperCase();
+  document.getElementById('nome-chips').innerHTML = NOMES.map(p =>
+    `<div class="nome-chip ${p.nome === atual ? 'sel' : ''}" data-nome="${p.nome}" onclick="selecionarNome('${p.nome}')">${p.nome}<small>${p.turno}</small></div>`).join('');
+  const inpE = document.getElementById('resp-input-escala');
+  if (inpE && document.activeElement !== inpE) {
+    inpE.value = NOMES.some(p => p.nome === atual) ? '' : (getResp() || '');
+  }
+  // Acompanhamento de execução de hoje
+  const date = todayKey(), data = loadData(date);
+  let html = '';
+  for (const [turn, td] of Object.entries(CHECKLIST_DATA)) {
+    let tot = 0, ok = 0, nok = 0;
+    for (const c of td.conjuntos) for (const i of c.itens) {
+      tot++;
+      const st = data[i.id]?.status;
+      if (st === 'ok') ok++; else if (st === 'nok') nok++;
+    }
+    const feitos = ok + nok, pct = tot ? Math.round(feitos / tot * 100) : 0;
+    const dur = duracaoRonda(turn, date);
+    const status = pct === 100 ? '✅ Concluída' : feitos > 0 ? '⏳ Em andamento' : '⚪ Não iniciada';
+    html += `<div class="acomp-card" onclick="currentTurn='${turn}';renderChecklist('${turn}');showScreen('screen-checklist')" style="cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b style="font-size:15px">${td.nome}</b><span style="font-size:12px;font-weight:600">${status}</span>
+      </div>
+      <div class="acomp-bar"><div class="acomp-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:12px;color:var(--text-muted)">${feitos} de ${tot} itens (${pct}%) · ✅ ${ok} OK · ❌ ${nok} NOK${dur ? ' · ⏱ ' + dur : ''}</div>
+    </div>`;
+  }
+  document.getElementById('escala-acomp').innerHTML = html;
+}
+
+// ===== QR CODES VISUALIZAÇÃO MOBILE =====
+function abrirQRFullscreen(conjId, nome, nItens, icon) {
+  const overlay = document.getElementById('modal-qr-full');
+  const qrWrap = document.getElementById('qr-full-img');
+  const title = document.getElementById('qr-full-title');
+  const sub = document.getElementById('qr-full-sub');
+  const code = document.getElementById('qr-full-code');
+  qrWrap.innerHTML = '';
+  title.textContent = (icon ? icon + ' ' : '') + nome;
+  sub.textContent = nItens + ' itens para verificação';
+  code.textContent = conjId;
+  const sz = Math.min(window.innerWidth - 40, 340);
+  try { new QRCode(qrWrap, { text: 'RONDA:SECAO:' + normalizarNome(nome), width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
+  overlay.classList.add('active');
+}
+
+function fecharQRFullscreen() {
+  document.getElementById('modal-qr-full').classList.remove('active');
+}
+
+function renderQRCards(query) {
+  const q = (query || '').toLowerCase().trim();
+  const container = document.getElementById('qr-cards-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  // Deduplica por nome — um QR serve para dia E noite
+  const seen = new Set();
+  const fila = []; // {el, text} para geração sequencial
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+
+  for (const [turn, tData] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of tData.conjuntos) {
+      const key = c.nome.trim().toUpperCase();
+      if (seen.has(key)) continue;
+      if (q && !c.nome.toLowerCase().includes(q) && !c.id.toLowerCase().includes(q)) continue;
+      seen.add(key);
+
+      const card = document.createElement('div');
+      card.style.cssText = 'background:white;border:1px solid #d6d1c4;border-radius:12px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;text-align:center;';
+      card.onclick = () => abrirQRFullscreen(c.id, c.nome, c.itens.length, c.icon);
+
+      const qrWrap = document.createElement('div');
+      qrWrap.style.cssText = 'width:110px;height:110px;';
+
+      const info = document.createElement('div');
+      info.innerHTML = `<div style="font-size:13px;font-weight:700;color:#1a2e4a;margin-bottom:2px;">${c.icon || ''} ${c.nome}</div>
+        <div style="font-size:11px;color:#9ca3af;">${c.itens.length} itens</div>`;
+
+      card.appendChild(qrWrap);
+      card.appendChild(info);
+      grid.appendChild(card);
+
+      fila.push({ el: qrWrap, text: 'RONDA:SECAO:' + normalizarNome(c.nome) });
+    }
+  }
+
+  if (!grid.children.length) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;">Nenhum QR code encontrado</div>';
+    return;
+  }
+  container.appendChild(grid);
+
+  // Geração SEQUENCIAL — aguarda a IMG de cada QR carregar antes do próximo
+  function gerarProximo(idx) {
+    if (idx >= fila.length) return;
+    const { el, text } = fila[idx];
+
+    const fazer = (tentativa) => {
+      if (typeof QRCode === 'undefined') {
+        if (tentativa < 20) setTimeout(() => fazer(tentativa + 1), 300);
+        return;
+      }
+      try {
+        el.innerHTML = '';
+        new QRCode(el, { text, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.L });
+        // Espera a IMG estar pronta antes de avançar
+        const avancar = () => setTimeout(() => gerarProximo(idx + 1), 60);
+        const img = el.querySelector('img');
+        const canvas = el.querySelector('canvas');
+        if (img) {
+          if (img.complete) { avancar(); }
+          else { img.onload = avancar; img.onerror = avancar; }
+        } else if (canvas) {
+          avancar();
+        } else {
+          // img ainda não criada — observa via MutationObserver
+          const obs = new MutationObserver(() => {
+            const i = el.querySelector('img');
+            if (i) {
+              obs.disconnect();
+              if (i.complete) avancar();
+              else { i.onload = avancar; i.onerror = avancar; }
+            }
+          });
+          obs.observe(el, { childList: true });
+          setTimeout(() => { obs.disconnect(); avancar(); }, 600);
+        }
+      } catch(e) {
+        if (tentativa < 3) setTimeout(() => fazer(tentativa + 1), 200);
+        else setTimeout(() => gerarProximo(idx + 1), 100);
+      }
+    };
+    fazer(0);
+  }
+
+  // Inicia após o DOM estar estável
+  setTimeout(() => gerarProximo(0), 400);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const jsEl = document.getElementById('js-status');
+    if (jsEl) jsEl.textContent = '✅ App carregado';
+    updateHomeStats();
+    try { document.getElementById('pend-date').value = todayKey(); } catch(e){}
+    try { document.getElementById('export-date').value = todayKey(); } catch(e){}
+    const savedResp = getResp();
+    if (savedResp) { try { document.getElementById('resp-input').value = savedResp; } catch(e){} }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  } catch(e) { console.warn('Init error:', e); }
+});
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+function abrirQRPDF() {
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Permita pop-ups para gerar o PDF'); return; }
+  // Coletar seções únicas por nome — um só QR por equipamento (serve para Dia e Noite)
+  const secoesMap = new Map();
+  for (const [turn, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      const key = c.nome.trim().toUpperCase();
+      if (!secoesMap.has(key)) {
+        secoesMap.set(key, { conjId: c.id, conjNome: c.nome, nome: c.nome, normText: normalizarNome(c.nome), icon: c.icon || '', turno: '', nItens: c.itens.length });
+      }
+    }
+  }
+  // Determinar em qual(is) turno(s) cada seção aparece
+  for (const [key, s] of secoesMap.entries()) {
+    const emDia   = CHECKLIST_DATA['1'].conjuntos.some(c => c.nome.trim().toUpperCase() === key);
+    const emNoite = CHECKLIST_DATA['2'].conjuntos.some(c => c.nome.trim().toUpperCase() === key);
+    s.turno = emDia && emNoite ? 'TURNO DIA E NOITE' : emDia ? 'TURNO DIA' : 'TURNO NOITE';
+  }
+  const secoes = [...secoesMap.values()];
+  const cells = secoes.map(s => `
+    <div class="cell">
+      <div class="qr" id="qr-${s.conjId}"></div>
+      <div class="nome">${s.icon} ${s.nome}</div>
+      <div class="sub">${s.nItens} itens</div>
+    </div>`).join('');
+  win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+    <meta charset="UTF-8">
+    <title>QR Codes – Ronda Manutenção Agrivalle</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <style>
+      @page { size: A4; margin: 14mm 10mm; }
+      body { font-family: Arial, sans-serif; background: #fff; margin: 0; }
+      h1 { text-align: center; font-size: 15px; margin: 0 0 10px; color: #1a2e4a; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+      .cell { border: 1px solid #d6d1c4; border-radius: 12px; padding: 14px 10px; text-align: center; page-break-inside: avoid; background: #fff; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .qr { display: flex; justify-content: center; }
+      .qr canvas, .qr img { border: 6px solid white; outline: 1px solid #e5e7eb; border-radius: 4px; }
+      .nome { font-size: 13px; font-weight: 700; color: #1a2e4a; }
+      .sub { font-size: 11px; color: #9ca3af; }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      }
+    </style>
+  </head><body>
+    <h1>🔧 QR Codes – Ronda de Manutenção Agrivalle Brasil</h1>
+    <div class="grid">${cells}</div>
+    <script>
+      window.onload = function() {
+        var secoes = ${JSON.stringify(secoes)};
+        function gerarQR(idx) {
+          if (idx >= secoes.length) {
+            setTimeout(function() { window.print(); }, 1200);
+            return;
+          }
+          var s = secoes[idx];
+          var el = document.getElementById('qr-' + s.conjId);
+          if (!el) { gerarQR(idx + 1); return; }
+          try {
+            el.innerHTML = '';
+            new QRCode(el, {
+              text: 'RONDA:SECAO:' + s.normText,
+              width: 180, height: 180,
+              correctLevel: QRCode.CorrectLevel.L
+            });
+            // Aguarda a img carregar antes do próximo
+            var img = el.querySelector('img');
+            if (img && !img.complete) {
+              img.onload = function() { gerarQR(idx + 1); };
+              img.onerror = function() { gerarQR(idx + 1); };
+            } else {
+              setTimeout(function() { gerarQR(idx + 1); }, 100);
+            }
+          } catch(e) {
+            gerarQR(idx + 1);
+          }
+        }
+        setTimeout(function() { gerarQR(0); }, 300);
+      };
+    <\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+function filtrarQRCodes(val) { renderQRCards(val); }
+
+function renderQRCodes() {
+  const list = document.getElementById('qrcodes-list');
+  if (typeof QRCode === 'undefined') {
+    list.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-muted);font-weight:600">⏳ Carregando gerador de QR codes...</div>';
+    carregarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js').then(() => {
+      if (typeof QRCode === 'undefined') {
+        list.innerHTML = '<div style="padding:28px;text-align:center;color:#dc2626;font-weight:600">⚠️ Não foi possível carregar o gerador de QR codes.<br>Verifique a internet e tente novamente.</div>';
+      } else { renderQRCodes(); }
+    });
+    return;
+  }
+  list.innerHTML = `
+    <div style="position:sticky;top:0;z-index:10;background:var(--bg);padding:10px 0 6px;">
+      <input id="qr-search" type="search" placeholder="🔍 Buscar equipamento..." autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;background:white;"
+        oninput="filtrarQRCodes(this.value)">
+    </div>
+    <div id="qr-cards-container"></div>`;
+  renderQRCards('');
+}
+// ===== IMPORTAR PLANILHA DE RONDA =====
+function importarPlanilhaRonda(file) {
+  if (!file) return;
+  const statusEl = document.getElementById('import-ronda-status');
+  if (statusEl) statusEl.textContent = '⏳ Lendo arquivo...';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      if (typeof XLSX === 'undefined') {
+        showToast('⚠️ Biblioteca Excel não carregada. Aguarde e tente novamente.');
+        if (statusEl) statusEl.textContent = 'Erro: biblioteca não carregada';
+        return;
+      }
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+
+      // Ler primeira aba (Rondas de Manutenção)
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // Identificar índices das colunas pelo cabeçalho
+      const header = rows[0].map(h => String(h).trim().toUpperCase());
+      const col = {
+        id:    header.findIndex(h => h === 'ID'),
+        st:    header.findIndex(h => h === 'STATUS'),
+        mot:   header.findIndex(h => h.includes('MOTIVO')),
+        obs:   header.findIndex(h => h.includes('OBSERVA')),
+        resp:  header.findIndex(h => h.includes('RESPONS')),
+        data:  header.findIndex(h => h === 'DATA'),
+        ini:   header.findIndex(h => h.includes('INÍCIO') || h.includes('INICIO') || h.includes('INÍCIO')),
+        fim:   header.findIndex(h => h.includes('FIM')),
+        turno: header.findIndex(h => h === 'TURNO'),
+      };
+
+      if (col.id < 0 || col.st < 0) {
+        showToast('❌ Formato inválido — coluna ID ou Status não encontrada');
+        if (statusEl) statusEl.textContent = '❌ Formato inválido';
+        return;
+      }
+
+      let importados = 0, erros = 0;
+      const hoje = todayKey();
+      // Agrupar por data
+      const porData = {};
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const itemId = String(row[col.id] || '').trim();
+        if (!itemId) continue;
+
+        // Normalizar status
+        const stRaw = String(row[col.st] || '').trim().toUpperCase();
+        const status = stRaw === 'OK' ? 'ok' : stRaw === 'NOK' ? 'nok' : stRaw === 'PENDENTE' ? 'pendente' : null;
+        if (!status) continue; // pular linhas sem status preenchido
+
+        // Data: aceita dd/mm/aaaa, yyyy-mm-dd, ou Date object do xlsx
+        let dataKey = hoje;
+        if (col.data >= 0 && row[col.data]) {
+          const rawDate = row[col.data];
+          if (rawDate instanceof Date) {
+            const d = rawDate;
+            dataKey = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          } else {
+            const ds = String(rawDate).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) {
+              dataKey = ds;
+            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(ds)) {
+              const [dd, mm, aaaa] = ds.split('/');
+              dataKey = `${aaaa}-${mm}-${dd}`;
+            }
+          }
+        }
+
+        if (!porData[dataKey]) porData[dataKey] = {};
+        porData[dataKey][itemId] = {
+          status,
+          motivo: col.mot  >= 0 ? String(row[col.mot]  || '').trim() : '',
+          obs:    col.obs  >= 0 ? String(row[col.obs]  || '').trim() : '',
+          resp:   col.resp >= 0 ? String(row[col.resp] || '').trim() : getResp(),
+          turno:  col.turno >= 0 ? String(row[col.turno] || '').trim() : '',
+          inicio: col.ini  >= 0 ? String(row[col.ini]  || '').trim() : '',
+          fim:    col.fim  >= 0 ? String(row[col.fim]  || '').trim() : '',
+          photos: [],
+        };
+        importados++;
+      }
+
+      // Gravar no storage por data, mesclando com dados existentes
+      for (const [dataKey, novos] of Object.entries(porData)) {
+        const existente = loadData(dataKey);
+        const merged = { ...existente };
+        for (const [id, val] of Object.entries(novos)) {
+          merged[id] = { ...(existente[id] || {}), ...val };
+        }
+        saveData(dataKey, merged);
+      }
+
+      // Atualizar responsável se informado em alguma linha
+      const respInformado = Object.values(porData).flatMap(d => Object.values(d)).map(v => v.resp).find(r => r);
+      if (respInformado && respInformado !== getResp()) {
+        Store.set('resp_nome', respInformado);
+        try { document.getElementById('resp-input').value = respInformado; } catch(e){}
+        try { document.getElementById('resp-input-escala').value = respInformado; } catch(e){}
+      }
+
+      const datas = Object.keys(porData);
+      const msg = `✅ ${importados} itens importados · ${datas.length} data(s)`;
+      showToast(msg);
+      if (statusEl) statusEl.textContent = msg;
+      updateHomeStats();
+      // Se a data importada for hoje, re-renderiza o checklist
+      if (porData[hoje]) {
+        renderChecklist(currentTurn || '1');
+      }
+    } catch(err) {
+      showToast('❌ Erro ao ler planilha: ' + err.message);
+      if (statusEl) statusEl.textContent = '❌ Erro: ' + err.message;
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===== CLEAR =====
+function clearDayData() {
+  if (!confirm('Limpar todos os dados de hoje (inspeções, nome e seções liberadas)? Esta ação não pode ser desfeita.')) return;
+  const date = todayKey();
+  // Dados da ronda
+  Store.remove('ronda_' + date);
+  // Nome do responsável
+  Store.remove('resp_nome');
+  try {
+    const inp = document.getElementById('resp-input');
+    if (inp) inp.value = '';
+    const inpE = document.getElementById('resp-input-escala');
+    if (inpE) inpE.value = '';
+  } catch(e) {}
+  // Timers e flags de envio
+  try {
+    ['1','2'].forEach(t => {
+      localStorage.removeItem('ronda_inicio_' + t + '_' + date);
+      localStorage.removeItem('ronda_fim_' + t + '_' + date);
+      localStorage.removeItem('ronda_enviada_' + t + '_' + date);
+    });
+    // Seções liberadas por QR hoje
+    localStorage.removeItem('secoes_lib_' + date);
+    ['1','2'].forEach(t => {
+      localStorage.removeItem('ronda_acumulado_' + t + '_' + date);
+      localStorage.removeItem('ronda_pausada_' + t + '_' + date);
+    });
+  } catch(e) {}
+  updateHomeStats();
+  renderEscalaApp();
+  showToast('🗑️ Dados de hoje apagados');
+}
+
+// ===== UTILS =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+
+<div id="modal-qr-full" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:white;border-radius:20px;padding:28px 24px 20px;text-align:center;max-width:340px;width:100%;">
+    <div id="qr-full-title" style="font-size:17px;font-weight:700;color:#1a2e4a;margin-bottom:4px;line-height:1.3;"></div>
+    <div id="qr-full-sub" style="font-size:13px;color:#5d7261;font-weight:600;margin-bottom:16px;"></div>
+    <div id="qr-full-img" style="display:flex;justify-content:center;margin-bottom:14px;"></div>
+    <div id="qr-full-code" style="font-family:monospace;font-size:12px;color:#9ca3af;margin-bottom:20px;"></div>
+    <button onclick="fecharQRFullscreen()" style="background:#5d7261;color:white;border:none;border-radius:10px;padding:12px 32px;font-size:16px;font-weight:700;cursor:pointer;width:100%;">Fechar</button>
+  </div>
+</div>
+<style>
+#modal-qr-full { display:none; }
+#modal-qr-full.active { display:flex; }
+</style>
+</body>
+</html>

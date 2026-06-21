@@ -2551,9 +2551,7 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
         <button id="modal-rel-enviar" style="display:block;width:100%;padding:15px;background:#1a5e3a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
           ✉️ Enviar Relatório + Arquivo Dashboard
         </button>
-        <button id="modal-rel-fotos" style="display:none;width:100%;padding:15px;background:#b45309;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
-          📸 Enviar com Fotos
-        </button>
+
         <button onclick="document.getElementById('modal-relatorio-final').style.display='none'" style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;cursor:pointer;">
           Fechar
         </button>
@@ -2567,27 +2565,42 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
   if (sub) sub.textContent = arquivoJSON
     ? 'Envia o relatório com o arquivo rondas_agrivalle.json anexado'
     : 'Toque para abrir o e-mail com o relatório completo';
-  const btnFotos = document.getElementById('modal-rel-fotos');
-  if (btnFotos) {
-    if (fotos.length > 0) {
-      btnFotos.style.display = 'block';
-      btnFotos.textContent = '📸 Enviar com Fotos (' + fotos.length + ' foto' + (fotos.length > 1 ? 's' : '') + ')';
-      btnFotos.onclick = async () => {
-        modal.style.display = 'none';
-        await compartilharRelatorioComFotos(assunto, corpo, fotos, mailto);
-      };
-    } else {
-      btnFotos.style.display = 'none';
-    }
-  }
   if (btnEnviar) {
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';
-      // 1. Baixa/salva o arquivo JSON automaticamente
+
+      // Se há fotos, tenta compartilhar tudo junto via Web Share API
+      if (fotos.length > 0) {
+        const files = [];
+        fotos.forEach((f, i) => {
+          const file = base64ToFile(f.dataUrl, 'foto_' + (f.label || i+1) + '.jpg');
+          if (file) files.push(file);
+        });
+        if (files.length > 0 && navigator.share && navigator.canShare && navigator.canShare({ files })) {
+          try {
+            await navigator.share({ title: assunto, text: corpo.substring(0, 800), files });
+            return; // compartilhou com fotos — não precisa mais nada
+          } catch(e) {
+            if (e.name === 'AbortError') return; // usuário cancelou
+            // Se falhou, continua para o fluxo normal abaixo
+          }
+        }
+        // Fallback: baixa fotos individualmente
+        files.forEach((file, i) => {
+          setTimeout(() => {
+            const url = URL.createObjectURL(file);
+            const a = document.createElement('a');
+            a.href = url; a.download = file.name;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
+          }, i * 300);
+        });
+      }
+
+      // Baixa/salva o arquivo JSON
       if (arquivoJSON) {
         try {
           if (window.showSaveFilePicker) {
-            // Android Chrome: deixa escolher pasta
             const fh = await window.showSaveFilePicker({
               suggestedName: arquivoJSON.name,
               types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
@@ -2596,7 +2609,6 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
             await w.write(await arquivoJSON.text());
             await w.close();
           } else {
-            // iOS/outros: download direto para pasta padrão
             const url = URL.createObjectURL(arquivoJSON);
             const a = document.createElement('a');
             a.href = url; a.download = arquivoJSON.name;
@@ -2604,11 +2616,12 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
           }
         } catch(e) {
-          if (e.name === 'AbortError') return; // usuário cancelou seleção de pasta
+          if (e.name === 'AbortError') return;
         }
       }
-      // 2. Abre email já endereçado com relatório no corpo
-      setTimeout(() => { window.location.href = mailto; }, 600);
+      // Abre email com relatório no corpo
+      const delay = fotos.length > 0 ? fotos.length * 300 + 600 : 600;
+      setTimeout(() => { window.location.href = mailto; }, delay);
     };
   }
   modal.style.display = 'flex';

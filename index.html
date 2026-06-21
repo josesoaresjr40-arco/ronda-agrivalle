@@ -127,19 +127,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   .splash-title {
     font-family: 'Poppins', sans-serif;
-    font-size: 22px;
+    font-size: 36px;
     font-weight: 700;
     color: white;
-    letter-spacing: 2px;
+    letter-spacing: 4px;
     text-align: center;
-    line-height: 1.4;
+    line-height: 1.25;
     text-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    overflow: hidden;
-    white-space: nowrap;
-    border-right: 3px solid rgba(255,255,255,0.8);
-    width: 0;
-    animation: typewriter 1.8s steps(28, end) 0.3s forwards,
-               blink 0.7s step-end 0.3s 3;
+    opacity: 0;
+    animation: fadeInTitle 0.8s ease 0.4s forwards;
   }
   .splash-sub {
     font-family: 'Poppins', sans-serif;
@@ -147,14 +143,23 @@ window.addEventListener('DOMContentLoaded', () => {
     color: rgba(255,255,255,0.85);
     letter-spacing: 3px;
     opacity: 0;
-    animation: fadeInSub 0.6s ease 2.3s forwards;
+    animation: fadeInSub 0.6s ease 1.2s forwards;
   }
-  @keyframes typewriter {
-    from { width: 0; }
-    to   { width: 22ch; border-right-color: transparent; }
+  .splash-tagline {
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-style: italic;
+    color: rgba(255,255,255,0.7);
+    text-align: center;
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+    opacity: 0;
+    animation: fadeInSub 0.6s ease 1.6s forwards;
   }
-  @keyframes blink {
-    50% { border-right-color: transparent; }
+  @keyframes fadeInTitle {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes fadeInSub {
     from { opacity: 0; transform: translateY(6px); }
@@ -393,8 +398,9 @@ window.addEventListener('DOMContentLoaded', () => {
 <!-- SPLASH SCREEN -->
 <div id="splash-screen">
   <div class="splash-logo">🔧</div>
-  <div class="splash-title">RONDA DE MANUTENÇÃO</div>
-  <div class="splash-sub">AGRIVALLE BRASIL</div>
+  <div class="splash-title">RONDA<br>DE<br>MANUTENÇÃO</div>
+  <div class="splash-sub">Agrivalle Brasil</div>
+  <div class="splash-tagline">A manutenção que<br>anota, controla<br>e informa.</div>
 </div>
 
 <!-- ====== TELAS ====== -->

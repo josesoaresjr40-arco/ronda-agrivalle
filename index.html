@@ -497,6 +497,13 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="export-sub" id="import-ronda-status">Carregar dados preenchidos no Excel de atualização</div>
       </div>
     </div>
+    <div class="export-card" onclick="enviarFotosWhatsApp()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📲</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Enviar Fotos por WhatsApp</div>
+        <div class="export-sub">Fotos dos itens NOK com nome do equipamento</div>
+      </div>
+    </div>
     <input type="file" id="ronda-xlsx-input" accept=".xlsx,.xls" style="display:none" onchange="importarPlanilhaRonda(this.files[0]);this.value=''">
     <div style="display:none">
     </div>
@@ -2330,6 +2337,70 @@ function gerarArquivoJSON(datas, nomeArquivo) {
   return new File([JSON.stringify(merged)], nomeArquivo, { type: 'application/json' });
 }
 
+
+// ===== FOTOS POR WHATSAPP =====
+async function enviarFotosWhatsApp() {
+  const date = todayKey();
+  const data = loadData(date);
+  const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+
+  // Coletar fotos de todos os itens com fotos (prioridade NOK)
+  const grupos = []; // { nomeEquip: '', fotos: [File] }
+  const seen = new Set();
+
+  for (const [turnKey, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (!d?.photos?.length) continue;
+        const chave = item.id;
+        if (seen.has(chave)) continue;
+        seen.add(chave);
+        const status = d.status === 'nok' ? '❌ NOK' : '✅ OK';
+        const nomeEquip = c.nome + ' – ' + item.comp;
+        const files = [];
+        d.photos.forEach((p, i) => {
+          const file = base64ToFile(p, (c.nome + '_' + item.comp + '_' + (i+1) + '.jpg')
+            .replace(/[^a-zA-Z0-9_.-]/g, '_').substring(0, 60));
+          if (file) files.push(file);
+        });
+        if (files.length) grupos.push({ nomeEquip, status, files });
+      }
+    }
+  }
+
+  if (!grupos.length) {
+    showToast('Nenhuma foto registrada na ronda de hoje.');
+    return;
+  }
+
+  // Texto resumo para acompanhar as fotos
+  const linhasTexto = ['📸 *Fotos Ronda Manutenção – ' + dataFmt + '*', ''];
+  grupos.forEach(g => linhasTexto.push(g.status + ' ' + g.nomeEquip));
+  const textoResumo = linhasTexto.join('\n');
+
+  // Juntar todos os arquivos
+  const todosFiles = grupos.flatMap(g => g.files);
+
+  // Tenta Web Share com arquivos (abre seletor de app — escolha WhatsApp)
+  if (navigator.share && navigator.canShare) {
+    const shareData = { text: textoResumo, files: todosFiles };
+    if (navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch(e) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+  }
+
+  // Fallback: WhatsApp deep link só com texto (sem imagem)
+  showToast('Compartilhamento de arquivos não suportado neste dispositivo.');
+  const waUrl = 'https://wa.me/?text=' + encodeURIComponent(textoResumo);
+  window.open(waUrl, '_blank');
+}
+
 function enviarRelatorioCompleto() {
   const date = todayKey();
   const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
@@ -2603,32 +2674,8 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
   if (btnEnviar) {
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';
-
-      // Copia o relatório completo (com bloco JSON) para a área de transferência
-      let copiou = false;
-      try {
-        await navigator.clipboard.writeText(corpo);
-        copiou = true;
-      } catch(e) {
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = corpo; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select();
-          copiou = document.execCommand('copy');
-          document.body.removeChild(ta);
-        } catch(e2) {}
-      }
-
-      // Abre e-mail com assunto e destinatários — sem body para não truncar
-      const mailtoSemBody = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto);
-      setTimeout(() => { window.location.href = mailtoSemBody; }, 300);
-
-      // Instrução ao usuário
-      setTimeout(() => {
-        showToast(copiou
-          ? '📋 Relatório copiado! Cole no corpo do e-mail e envie.'
-          : '📧 E-mail aberto. Copie o relatório e cole no corpo.');
-      }, 800);
+      // Abre e-mail com corpo completo (relatório + bloco dashboard)
+      window.location.href = mailto;
     };
   }
   modal.style.display = 'flex';

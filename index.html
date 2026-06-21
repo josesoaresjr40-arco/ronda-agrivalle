@@ -46,7 +46,12 @@ function carregarScript(src) {
   });
 }
 // Carregar em paralelo após o DOM estar pronto
-async function carregarJsQR() {
+// Remove acentos para QR sem caracteres especiais
+  function normalizarNome(s) {
+    return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+  }
+
+  async function carregarJsQR() {
   if (typeof jsQR !== 'undefined') return;
   const urls = [
     'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
@@ -460,9 +465,7 @@ window.addEventListener('DOMContentLoaded', () => {
     <label>Data:</label>
     <input type="date" id="pend-date" onchange="renderPendencias()">
   </div>
-  <div style="padding: 12px 16px 0;">
-    <button class="email-btn" onclick="enviarEmailNOK()">✉️ Enviar Pendências por E-mail</button>
-  </div>
+
   <div id="pendencias-list" class="page-with-nav" style="padding-bottom: 80px"></div>
 </div>
 
@@ -487,6 +490,14 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="export-sub">Relatório completo com tempos, pendências e itens verificados</div>
       </div>
     </div>
+    <div class="export-card" onclick="document.getElementById('ronda-xlsx-input').click()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📥</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Importar Planilha de Ronda</div>
+        <div class="export-sub" id="import-ronda-status">Carregar dados preenchidos no Excel de atualização</div>
+      </div>
+    </div>
+    <input type="file" id="ronda-xlsx-input" accept=".xlsx,.xls" style="display:none" onchange="importarPlanilhaRonda(this.files[0]);this.value=''">
     <div style="display:none">
     </div>
     <input type="date" id="export-date" style="display:none">
@@ -1672,19 +1683,23 @@ function processarQR(data) {
 
 // Abre a seção correspondente ao QR escaneado e libera todos os itens dela
 function abrirSecaoPorNome(nome) {
-  // Busca em TODOS os turnos (não só o atual) para suportar QRs de turno noite
+  // Busca em TODOS os turnos; prefere o turno atual — QR único serve dia e noite
   let encontrado = null;
   let turnoEncontrado = currentTurn;
+  let fallback = null, turnoFallback = currentTurn;
   for (const [t, td] of Object.entries(CHECKLIST_DATA)) {
     for (const c of td.conjuntos) {
-      if (c.nome.trim().toUpperCase() === nome.trim().toUpperCase()) {
-        encontrado = c;
-        turnoEncontrado = t;
-        break;
+      if (normalizarNome(c.nome) === normalizarNome(nome)) {
+        if (t === currentTurn) {
+          encontrado = c; turnoEncontrado = t; break;
+        } else if (!fallback) {
+          fallback = c; turnoFallback = t;
+        }
       }
     }
     if (encontrado) break;
   }
+  if (!encontrado) { encontrado = fallback; turnoEncontrado = turnoFallback; }
   if (!encontrado) {
     showToast('❌ Seção "' + nome + '" não encontrada');
     showScreen(qrReturnScreen || 'screen-checklist');
@@ -2690,7 +2705,7 @@ function abrirQRFullscreen(conjId, nome, nItens, icon) {
   sub.textContent = nItens + ' itens para verificação';
   code.textContent = conjId;
   const sz = Math.min(window.innerWidth - 40, 340);
-  try { new QRCode(qrWrap, { text: 'RONDA:CONJ:' + conjId, width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
+  try { new QRCode(qrWrap, { text: 'RONDA:SECAO:' + normalizarNome(nome), width: sz, height: sz, correctLevel: QRCode.CorrectLevel.L }); } catch(e) {}
   overlay.classList.add('active');
 }
 
@@ -2703,51 +2718,91 @@ function renderQRCards(query) {
   const container = document.getElementById('qr-cards-container');
   if (!container) return;
   container.innerHTML = '';
-  let delay = 0;
+
+  // Deduplica por nome — um QR serve para dia E noite
+  const seen = new Set();
+  const fila = []; // {el, text} para geração sequencial
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+
   for (const [turn, tData] of Object.entries(CHECKLIST_DATA)) {
-    const th = document.createElement('div');
-    th.style.cssText = 'background:var(--primary);color:white;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:700;margin:12px 0 6px;';
-    th.textContent = (turn === '1' ? '☀️ ' : '🌙 ') + tData.nome;
-    let anyShown = false;
-    const cards = [];
     for (const c of tData.conjuntos) {
-      if (q && !c.nome.toLowerCase().includes(q) && !c.id.toLowerCase().includes(q) && !tData.nome.toLowerCase().includes(q)) continue;
+      const key = c.nome.trim().toUpperCase();
+      if (seen.has(key)) continue;
+      if (q && !c.nome.toLowerCase().includes(q) && !c.id.toLowerCase().includes(q)) continue;
+      seen.add(key);
+
       const card = document.createElement('div');
-      card.style.cssText = 'background:white;border:1px solid #d6d1c4;border-radius:12px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;text-align:center;';
+      card.style.cssText = 'background:white;border:1px solid #d6d1c4;border-radius:12px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;text-align:center;';
       card.onclick = () => abrirQRFullscreen(c.id, c.nome, c.itens.length, c.icon);
 
       const qrWrap = document.createElement('div');
-      qrWrap.id = 'qr-card-' + c.id + '-' + turn;
+      qrWrap.style.cssText = 'width:110px;height:110px;';
 
       const info = document.createElement('div');
-      info.innerHTML = `<div style="font-size:14px;font-weight:700;color:#1a2e4a;margin-bottom:2px;">${c.icon || ''} ${c.nome}</div>
-        <div style="font-size:11px;color:#9ca3af;">${c.itens.length} itens · <span style="font-family:monospace">${c.id}</span></div>
-        <div style="font-size:10px;color:#5d7261;font-weight:600;margin-top:2px;">${turn === '1' ? '☀️ Turno Dia' : '🌙 Turno Noite'}</div>`;
+      info.innerHTML = `<div style="font-size:13px;font-weight:700;color:#1a2e4a;margin-bottom:2px;">${c.icon || ''} ${c.nome}</div>
+        <div style="font-size:11px;color:#9ca3af;">${c.itens.length} itens</div>`;
 
       card.appendChild(qrWrap);
       card.appendChild(info);
-      cards.push(card);
-      anyShown = true;
-      const conjId2 = c.id;
-      const qrEl = qrWrap;
-      const d = delay;
-      setTimeout(() => {
-        try {
-          if (typeof QRCode !== 'undefined') {
-            new QRCode(qrEl, { text: 'RONDA:CONJ:' + conjId2, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.L });
-          }
-        } catch(e) {}
-      }, d);
-      delay += 60;
-    }
-    if (anyShown) {
-      container.appendChild(th);
-      cards.forEach(cd => container.appendChild(cd));
+      grid.appendChild(card);
+
+      fila.push({ el: qrWrap, text: 'RONDA:SECAO:' + normalizarNome(c.nome) });
     }
   }
-  if (!container.children.length) {
+
+  if (!grid.children.length) {
     container.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;">Nenhum QR code encontrado</div>';
+    return;
   }
+  container.appendChild(grid);
+
+  // Geração SEQUENCIAL — aguarda a IMG de cada QR carregar antes do próximo
+  function gerarProximo(idx) {
+    if (idx >= fila.length) return;
+    const { el, text } = fila[idx];
+
+    const fazer = (tentativa) => {
+      if (typeof QRCode === 'undefined') {
+        if (tentativa < 20) setTimeout(() => fazer(tentativa + 1), 300);
+        return;
+      }
+      try {
+        el.innerHTML = '';
+        new QRCode(el, { text, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.L });
+        // Espera a IMG estar pronta antes de avançar
+        const avancar = () => setTimeout(() => gerarProximo(idx + 1), 60);
+        const img = el.querySelector('img');
+        const canvas = el.querySelector('canvas');
+        if (img) {
+          if (img.complete) { avancar(); }
+          else { img.onload = avancar; img.onerror = avancar; }
+        } else if (canvas) {
+          avancar();
+        } else {
+          // img ainda não criada — observa via MutationObserver
+          const obs = new MutationObserver(() => {
+            const i = el.querySelector('img');
+            if (i) {
+              obs.disconnect();
+              if (i.complete) avancar();
+              else { i.onload = avancar; i.onerror = avancar; }
+            }
+          });
+          obs.observe(el, { childList: true });
+          setTimeout(() => { obs.disconnect(); avancar(); }, 600);
+        }
+      } catch(e) {
+        if (tentativa < 3) setTimeout(() => fazer(tentativa + 1), 200);
+        else setTimeout(() => gerarProximo(idx + 1), 100);
+      }
+    };
+    fazer(0);
+  }
+
+  // Inicia após o DOM estar estável
+  setTimeout(() => gerarProximo(0), 400);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2780,7 +2835,7 @@ function abrirQRPDF() {
     for (const c of td.conjuntos) {
       const key = c.nome.trim().toUpperCase();
       if (!secoesMap.has(key)) {
-        secoesMap.set(key, { conjId: c.id, conjNome: c.nome, nome: c.nome, icon: c.icon || '', turno: '', nItens: c.itens.length });
+        secoesMap.set(key, { conjId: c.id, conjNome: c.nome, nome: c.nome, normText: normalizarNome(c.nome), icon: c.icon || '', turno: '', nItens: c.itens.length });
       }
     }
   }
@@ -2794,9 +2849,8 @@ function abrirQRPDF() {
   const cells = secoes.map(s => `
     <div class="cell">
       <div class="qr" id="qr-${s.conjId}"></div>
-      <div class="turno">${s.turno}</div>
       <div class="nome">${s.icon} ${s.nome}</div>
-      <div class="sub">${s.nItens} itens &nbsp;·&nbsp; <span class="cod">${s.conjId}</span></div>
+      <div class="sub">${s.nItens} itens</div>
     </div>`).join('');
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
     <meta charset="UTF-8">
@@ -2807,15 +2861,11 @@ function abrirQRPDF() {
       body { font-family: Arial, sans-serif; background: #fff; margin: 0; }
       h1 { text-align: center; font-size: 15px; margin: 0 0 10px; color: #1a2e4a; }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-      .cell { border: 2px solid #c8c4b4; border-radius: 10px; padding: 16px 10px; text-align: center; page-break-inside: avoid; background: #fff; }
-      .cell:nth-child(4n+1) { page-break-before: auto; }
-      .cell:nth-child(4n) { page-break-after: always; }
-      .qr { display: flex; justify-content: center; margin-bottom: 8px; }
-      .qr canvas, .qr img { border: 8px solid white; outline: 1.5px solid #e5e7eb; }
-      .turno { font-size: 10px; font-weight: 700; color: #5d7261; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
-      .nome { font-size: 15px; font-weight: 700; color: #1a2e4a; margin-bottom: 3px; }
+      .cell { border: 1px solid #d6d1c4; border-radius: 12px; padding: 14px 10px; text-align: center; page-break-inside: avoid; background: #fff; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      .qr { display: flex; justify-content: center; }
+      .qr canvas, .qr img { border: 6px solid white; outline: 1px solid #e5e7eb; border-radius: 4px; }
+      .nome { font-size: 13px; font-weight: 700; color: #1a2e4a; }
       .sub { font-size: 11px; color: #9ca3af; }
-      .cod { font-family: monospace; }
       @media print {
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       }
@@ -2826,20 +2876,34 @@ function abrirQRPDF() {
     <script>
       window.onload = function() {
         var secoes = ${JSON.stringify(secoes)};
-        var done = 0;
-        secoes.forEach(function(s) {
+        function gerarQR(idx) {
+          if (idx >= secoes.length) {
+            setTimeout(function() { window.print(); }, 1200);
+            return;
+          }
+          var s = secoes[idx];
+          var el = document.getElementById('qr-' + s.conjId);
+          if (!el) { gerarQR(idx + 1); return; }
           try {
-            new QRCode(document.getElementById('qr-' + s.conjId), {
-              text: 'RONDA:CONJ:' + s.conjId,
-              width: 220, height: 220,
+            el.innerHTML = '';
+            new QRCode(el, {
+              text: 'RONDA:SECAO:' + s.normText,
+              width: 180, height: 180,
               correctLevel: QRCode.CorrectLevel.L
             });
-          } catch(e) {}
-          done++;
-          if (done === secoes.length) {
-            setTimeout(function() { window.print(); }, 800);
+            // Aguarda a img carregar antes do próximo
+            var img = el.querySelector('img');
+            if (img && !img.complete) {
+              img.onload = function() { gerarQR(idx + 1); };
+              img.onerror = function() { gerarQR(idx + 1); };
+            } else {
+              setTimeout(function() { gerarQR(idx + 1); }, 100);
+            }
+          } catch(e) {
+            gerarQR(idx + 1);
           }
-        });
+        }
+        setTimeout(function() { gerarQR(0); }, 300);
       };
     <\/script>
   </body></html>`);
@@ -2868,6 +2932,129 @@ function renderQRCodes() {
     <div id="qr-cards-container"></div>`;
   renderQRCards('');
 }
+// ===== IMPORTAR PLANILHA DE RONDA =====
+function importarPlanilhaRonda(file) {
+  if (!file) return;
+  const statusEl = document.getElementById('import-ronda-status');
+  if (statusEl) statusEl.textContent = '⏳ Lendo arquivo...';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      if (typeof XLSX === 'undefined') {
+        showToast('⚠️ Biblioteca Excel não carregada. Aguarde e tente novamente.');
+        if (statusEl) statusEl.textContent = 'Erro: biblioteca não carregada';
+        return;
+      }
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+
+      // Ler primeira aba (Rondas de Manutenção)
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // Identificar índices das colunas pelo cabeçalho
+      const header = rows[0].map(h => String(h).trim().toUpperCase());
+      const col = {
+        id:    header.findIndex(h => h === 'ID'),
+        st:    header.findIndex(h => h === 'STATUS'),
+        mot:   header.findIndex(h => h.includes('MOTIVO')),
+        obs:   header.findIndex(h => h.includes('OBSERVA')),
+        resp:  header.findIndex(h => h.includes('RESPONS')),
+        data:  header.findIndex(h => h === 'DATA'),
+        ini:   header.findIndex(h => h.includes('INÍCIO') || h.includes('INICIO') || h.includes('INÍCIO')),
+        fim:   header.findIndex(h => h.includes('FIM')),
+        turno: header.findIndex(h => h === 'TURNO'),
+      };
+
+      if (col.id < 0 || col.st < 0) {
+        showToast('❌ Formato inválido — coluna ID ou Status não encontrada');
+        if (statusEl) statusEl.textContent = '❌ Formato inválido';
+        return;
+      }
+
+      let importados = 0, erros = 0;
+      const hoje = todayKey();
+      // Agrupar por data
+      const porData = {};
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const itemId = String(row[col.id] || '').trim();
+        if (!itemId) continue;
+
+        // Normalizar status
+        const stRaw = String(row[col.st] || '').trim().toUpperCase();
+        const status = stRaw === 'OK' ? 'ok' : stRaw === 'NOK' ? 'nok' : stRaw === 'PENDENTE' ? 'pendente' : null;
+        if (!status) continue; // pular linhas sem status preenchido
+
+        // Data: aceita dd/mm/aaaa, yyyy-mm-dd, ou Date object do xlsx
+        let dataKey = hoje;
+        if (col.data >= 0 && row[col.data]) {
+          const rawDate = row[col.data];
+          if (rawDate instanceof Date) {
+            const d = rawDate;
+            dataKey = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          } else {
+            const ds = String(rawDate).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) {
+              dataKey = ds;
+            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(ds)) {
+              const [dd, mm, aaaa] = ds.split('/');
+              dataKey = `${aaaa}-${mm}-${dd}`;
+            }
+          }
+        }
+
+        if (!porData[dataKey]) porData[dataKey] = {};
+        porData[dataKey][itemId] = {
+          status,
+          motivo: col.mot  >= 0 ? String(row[col.mot]  || '').trim() : '',
+          obs:    col.obs  >= 0 ? String(row[col.obs]  || '').trim() : '',
+          resp:   col.resp >= 0 ? String(row[col.resp] || '').trim() : getResp(),
+          turno:  col.turno >= 0 ? String(row[col.turno] || '').trim() : '',
+          inicio: col.ini  >= 0 ? String(row[col.ini]  || '').trim() : '',
+          fim:    col.fim  >= 0 ? String(row[col.fim]  || '').trim() : '',
+          photos: [],
+        };
+        importados++;
+      }
+
+      // Gravar no storage por data, mesclando com dados existentes
+      for (const [dataKey, novos] of Object.entries(porData)) {
+        const existente = loadData(dataKey);
+        const merged = { ...existente };
+        for (const [id, val] of Object.entries(novos)) {
+          merged[id] = { ...(existente[id] || {}), ...val };
+        }
+        saveData(dataKey, merged);
+      }
+
+      // Atualizar responsável se informado em alguma linha
+      const respInformado = Object.values(porData).flatMap(d => Object.values(d)).map(v => v.resp).find(r => r);
+      if (respInformado && respInformado !== getResp()) {
+        Store.set('resp_nome', respInformado);
+        try { document.getElementById('resp-input').value = respInformado; } catch(e){}
+        try { document.getElementById('resp-input-escala').value = respInformado; } catch(e){}
+      }
+
+      const datas = Object.keys(porData);
+      const msg = `✅ ${importados} itens importados · ${datas.length} data(s)`;
+      showToast(msg);
+      if (statusEl) statusEl.textContent = msg;
+      updateHomeStats();
+      // Se a data importada for hoje, re-renderiza o checklist
+      if (porData[hoje]) {
+        renderChecklist(currentTurn || '1');
+      }
+    } catch(err) {
+      showToast('❌ Erro ao ler planilha: ' + err.message);
+      if (statusEl) statusEl.textContent = '❌ Erro: ' + err.message;
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 // ===== CLEAR =====
 function clearDayData() {
   if (!confirm('Limpar todos os dados de hoje (inspeções, nome e seções liberadas)? Esta ação não pode ser desfeita.')) return;

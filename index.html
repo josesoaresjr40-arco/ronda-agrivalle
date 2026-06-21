@@ -2604,14 +2604,12 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';
 
-      // 1. Copia o texto completo (com bloco JSON) para a área de transferência
-      //    — evita o limite de URL do mailto que trunca o corpo
+      // Copia o relatório completo (com bloco JSON) para a área de transferência
       let copiou = false;
       try {
         await navigator.clipboard.writeText(corpo);
         copiou = true;
       } catch(e) {
-        // clipboard bloqueada — tenta via execCommand legado
         try {
           const ta = document.createElement('textarea');
           ta.value = corpo; ta.style.position = 'fixed'; ta.style.opacity = '0';
@@ -2621,30 +2619,15 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
         } catch(e2) {}
       }
 
-      // 2. Fotos via Web Share API (se houver e suportado)
-      if (fotos.length > 0) {
-        const files = [];
-        fotos.forEach((f, i) => {
-          const file = base64ToFile(f.dataUrl, 'foto_' + (f.label || i+1) + '.jpg');
-          if (file) files.push(file);
-        });
-        if (files.length > 0 && navigator.share && navigator.canShare && navigator.canShare({ files })) {
-          try {
-            await navigator.share({ title: assunto, text: corpo.substring(0, 400), files });
-          } catch(e) { if (e.name !== 'AbortError') { /* continua */ } else return; }
-        }
-      }
-
-      // 3. Abre e-mail com assunto e destinatários — sem body (sem risco de truncar)
-      //    O usuário cola (Ctrl+V / colar) o relatório que já está na área de transferência
+      // Abre e-mail com assunto e destinatários — sem body para não truncar
       const mailtoSemBody = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto);
       setTimeout(() => { window.location.href = mailtoSemBody; }, 300);
 
-      // 4. Toast instrução
+      // Instrução ao usuário
       setTimeout(() => {
         showToast(copiou
-          ? '📋 Relatório copiado! Cole no corpo do e-mail (Ctrl+V) e envie.'
-          : '📧 E-mail aberto. Cole o relatório no corpo e envie.');
+          ? '📋 Relatório copiado! Cole no corpo do e-mail e envie.'
+          : '📧 E-mail aberto. Copie o relatório e cole no corpo.');
       }, 800);
     };
   }

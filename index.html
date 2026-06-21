@@ -851,6 +851,12 @@ CHECKLIST_DATA["1"].nome = "Turno Dia";
 
 // ===== EMAILS DESTINO =====
 const EMAIL_DESTINOS = 'renan.cruz@agrivalle.com.br,jose.soares@agrivalle.com.br';
+
+// ===== EMAILJS — preencha após criar conta em emailjs.com =====
+const EMAILJS_PUBLIC_KEY   = '';   // ex: 'user_xxxxxxxxxxxxxxxxxxx'
+const EMAILJS_SERVICE_ID   = '';   // ex: 'service_xxxxxxx'
+const EMAILJS_TEMPLATE_ID  = '';   // ex: 'template_xxxxxxx'
+// ================================================================
 // URL do Web App (Google Apps Script) para envio automático de e-mails com anexos.
 // Instruções no arquivo "Configurar Envio Automatico.txt" da pasta Ronda.
 const ENVIO_AUTO_URL = '';
@@ -2389,11 +2395,11 @@ function enviarRelatorioCompleto() {
 
   linhas.push('====================================================');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: ['1','2'] }]);
-  const corpo = linhas.join('\n') + blocoJSON;
+  const corpo = linhas.join('\n');
   const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
-  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  // Gera arquivo JSON (inclui os dados do dashboard internamente)
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: ['1','2'] }], 'rondas_agrivalle.json');
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo + '\n\n[Arquivo rondas_agrivalle.json baixado automaticamente — importe no Dashboard]');
   const fotos = coletarFotos(date, ['1','2']);
   mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON, fotos);
 }
@@ -2459,15 +2465,43 @@ function enviarEmailCompleto(date, turnKey, autoAbrir) {
   }
   linhas.push('');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: [turnKey] }]);
-  const corpo = linhas.join('\n') + blocoJSON;
+  const corpo = linhas.join('\n');
   const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
-  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: [turnKey] }], 'rondas_agrivalle.json');
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo + '\n\n[Arquivo rondas_agrivalle.json baixado automaticamente — importe no Dashboard]');
   const fotos = coletarFotos(date, [turnKey]);
   mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos);
 }
 
+
+
+// Envia relatório + fotos diretamente via EmailJS (sem interação do usuário)
+async function enviarComEmailJS(assunto, corpo, fotos, arquivoJSON) {
+  // Carrega SDK se necessário
+  if (typeof emailjs === 'undefined') {
+    await carregarScript('https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js');
+    if (typeof emailjs === 'undefined') throw new Error('EmailJS não carregou');
+  }
+  emailjs.init(EMAILJS_PUBLIC_KEY);
+
+  // Monta HTML das fotos para embutir no corpo do e-mail
+  const fotosHTML = fotos.map((f, i) => {
+    const label = (f.label || ('Foto ' + (i + 1))).replace(/_/g, ' ');
+    return '<div style="margin:10px 0"><p style="margin:0 0 4px;font-size:12px;color:#555;font-family:Arial">' +
+      label + '</p><img src="' + f.dataUrl + '" style="max-width:480px;border-radius:8px;display:block"/></div>';
+  }).join('');
+
+  const corpoHTML = '<pre style="font-family:monospace;font-size:13px;white-space:pre-wrap">' +
+    corpo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>' +
+    (fotosHTML ? '<hr style="margin:20px 0"><h3 style="font-family:Arial;color:#1a2e4a">📸 Fotos da Ronda</h3>' + fotosHTML : '');
+
+  return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_email:     EMAIL_DESTINOS,
+    subject:      assunto,
+    message_html: corpoHTML,
+    message_text: corpo,
+  });
+}
 
 // ===== COMPARTILHAMENTO COM FOTOS =====
 function base64ToFile(dataUrl, filename) {
@@ -2569,7 +2603,28 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';
 
-      // Se há fotos, tenta compartilhar tudo junto via Web Share API
+      // === CAMINHO 1: EmailJS configurado → envia direto, sem interação ===
+      if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID) {
+        showToast('📤 Enviando relatório…');
+        try {
+          await enviarComEmailJS(assunto, corpo, fotos, arquivoJSON);
+          showToast('✅ Relatório enviado com sucesso!');
+          // Também baixa o JSON de dashboard
+          if (arquivoJSON) {
+            const url = URL.createObjectURL(arquivoJSON);
+            const a = document.createElement('a'); a.href = url; a.download = arquivoJSON.name;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+          }
+          return;
+        } catch(e) {
+          showToast('⚠️ EmailJS falhou — abrindo e-mail manualmente');
+          console.error('EmailJS:', e);
+          // Cai no fallback abaixo
+        }
+      }
+
+      // === CAMINHO 2: Fallback — mailto + download de fotos ===
       if (fotos.length > 0) {
         const files = [];
         fotos.forEach((f, i) => {
@@ -2579,47 +2634,28 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
         if (files.length > 0 && navigator.share && navigator.canShare && navigator.canShare({ files })) {
           try {
             await navigator.share({ title: assunto, text: corpo.substring(0, 800), files });
-            return; // compartilhou com fotos — não precisa mais nada
-          } catch(e) {
-            if (e.name === 'AbortError') return; // usuário cancelou
-            // Se falhou, continua para o fluxo normal abaixo
-          }
+            return;
+          } catch(e) { if (e.name === 'AbortError') return; }
         }
-        // Fallback: baixa fotos individualmente
         files.forEach((file, i) => {
           setTimeout(() => {
             const url = URL.createObjectURL(file);
-            const a = document.createElement('a');
-            a.href = url; a.download = file.name;
+            const a = document.createElement('a'); a.href = url; a.download = file.name;
             document.body.appendChild(a); a.click();
             setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
           }, i * 300);
         });
       }
 
-      // Baixa/salva o arquivo JSON
+      // Baixa JSON
       if (arquivoJSON) {
         try {
-          if (window.showSaveFilePicker) {
-            const fh = await window.showSaveFilePicker({
-              suggestedName: arquivoJSON.name,
-              types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
-            });
-            const w = await fh.createWritable();
-            await w.write(await arquivoJSON.text());
-            await w.close();
-          } else {
-            const url = URL.createObjectURL(arquivoJSON);
-            const a = document.createElement('a');
-            a.href = url; a.download = arquivoJSON.name;
-            document.body.appendChild(a); a.click();
-            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-          }
-        } catch(e) {
-          if (e.name === 'AbortError') return;
-        }
+          const url = URL.createObjectURL(arquivoJSON);
+          const a = document.createElement('a'); a.href = url; a.download = arquivoJSON.name;
+          document.body.appendChild(a); a.click();
+          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+        } catch(e) {}
       }
-      // Abre email com relatório no corpo
       const delay = fotos.length > 0 ? fotos.length * 300 + 600 : 600;
       setTimeout(() => { window.location.href = mailto; }, delay);
     };

@@ -2604,28 +2604,24 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';
 
-      // === CAMINHO 1: EmailJS configurado → envia direto, sem interação ===
-      if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID) {
-        showToast('📤 Enviando relatório…');
+      // 1. Copia o texto completo (com bloco JSON) para a área de transferência
+      //    — evita o limite de URL do mailto que trunca o corpo
+      let copiou = false;
+      try {
+        await navigator.clipboard.writeText(corpo);
+        copiou = true;
+      } catch(e) {
+        // clipboard bloqueada — tenta via execCommand legado
         try {
-          await enviarComEmailJS(assunto, corpo, fotos, arquivoJSON);
-          showToast('✅ Relatório enviado com sucesso!');
-          // Também baixa o JSON de dashboard
-          if (arquivoJSON) {
-            const url = URL.createObjectURL(arquivoJSON);
-            const a = document.createElement('a'); a.href = url; a.download = arquivoJSON.name;
-            document.body.appendChild(a); a.click();
-            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-          }
-          return;
-        } catch(e) {
-          showToast('⚠️ EmailJS falhou — abrindo e-mail manualmente');
-          console.error('EmailJS:', e);
-          // Cai no fallback abaixo
-        }
+          const ta = document.createElement('textarea');
+          ta.value = corpo; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          copiou = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch(e2) {}
       }
 
-      // === CAMINHO 2: Fallback — mailto + download de fotos ===
+      // 2. Fotos via Web Share API (se houver e suportado)
       if (fotos.length > 0) {
         const files = [];
         fotos.forEach((f, i) => {
@@ -2634,31 +2630,22 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, f
         });
         if (files.length > 0 && navigator.share && navigator.canShare && navigator.canShare({ files })) {
           try {
-            await navigator.share({ title: assunto, text: corpo.substring(0, 800), files });
-            return;
-          } catch(e) { if (e.name === 'AbortError') return; }
+            await navigator.share({ title: assunto, text: corpo.substring(0, 400), files });
+          } catch(e) { if (e.name !== 'AbortError') { /* continua */ } else return; }
         }
-        files.forEach((file, i) => {
-          setTimeout(() => {
-            const url = URL.createObjectURL(file);
-            const a = document.createElement('a'); a.href = url; a.download = file.name;
-            document.body.appendChild(a); a.click();
-            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
-          }, i * 300);
-        });
       }
 
-      // Baixa JSON
-      if (arquivoJSON) {
-        try {
-          const url = URL.createObjectURL(arquivoJSON);
-          const a = document.createElement('a'); a.href = url; a.download = arquivoJSON.name;
-          document.body.appendChild(a); a.click();
-          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-        } catch(e) {}
-      }
-      const delay = fotos.length > 0 ? fotos.length * 300 + 600 : 600;
-      setTimeout(() => { window.location.href = mailto; }, delay);
+      // 3. Abre e-mail com assunto e destinatários — sem body (sem risco de truncar)
+      //    O usuário cola (Ctrl+V / colar) o relatório que já está na área de transferência
+      const mailtoSemBody = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto);
+      setTimeout(() => { window.location.href = mailtoSemBody; }, 300);
+
+      // 4. Toast instrução
+      setTimeout(() => {
+        showToast(copiou
+          ? '📋 Relatório copiado! Cole no corpo do e-mail (Ctrl+V) e envie.'
+          : '📧 E-mail aberto. Cole o relatório no corpo e envie.');
+      }, 800);
     };
   }
   modal.style.display = 'flex';

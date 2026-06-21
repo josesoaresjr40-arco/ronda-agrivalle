@@ -2394,7 +2394,8 @@ function enviarRelatorioCompleto() {
   const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: ['1','2'] }], 'rondas_agrivalle.json');
-  mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON);
+  const fotos = coletarFotos(date, ['1','2']);
+  mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON, fotos);
 }
 
 function enviarEmailCompleto(date, turnKey, autoAbrir) {
@@ -2463,10 +2464,80 @@ function enviarEmailCompleto(date, turnKey, autoAbrir) {
   const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: [turnKey] }], 'rondas_agrivalle.json');
-  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON);
+  const fotos = coletarFotos(date, [turnKey]);
+  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos);
 }
 
-function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
+
+// ===== COMPARTILHAMENTO COM FOTOS =====
+function base64ToFile(dataUrl, filename) {
+  try {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    const u8 = new Uint8Array(bstr.length);
+    for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+    return new File([u8], filename, { type: mime });
+  } catch(e) { return null; }
+}
+
+async function compartilharRelatorioComFotos(assunto, corpo, fotos, mailto) {
+  const files = [];
+  fotos.forEach((f, i) => {
+    const file = base64ToFile(f.dataUrl, 'foto_' + (f.label || i+1) + '_' + (i+1) + '.jpg');
+    if (file) files.push(file);
+  });
+
+  // Tenta Web Share API com arquivos (Android Chrome, iOS Safari 15+)
+  if (files.length > 0 && navigator.share && navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ title: assunto, text: corpo.substring(0, 800), files });
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') return; // usuário cancelou
+    }
+  }
+
+  // Fallback: baixar fotos + abrir email
+  files.forEach((file, i) => {
+    setTimeout(() => {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.download = file.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
+    }, i * 400);
+  });
+  setTimeout(() => { window.location.href = mailto; }, files.length * 400 + 800);
+}
+
+function coletarFotos(date, turnKeys) {
+  const fotos = [];
+  const visto = new Set();
+  for (const turnKey of turnKeys) {
+    const td = CHECKLIST_DATA[turnKey];
+    if (!td) continue;
+    const data = loadData(date);
+    for (const c of td.conjuntos) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.photos?.length) {
+          d.photos.forEach((p, pi) => {
+            const key = p.substring(0, 40);
+            if (visto.has(key)) return;
+            visto.add(key);
+            const status = d.status === 'nok' ? 'NOK' : 'OK';
+            fotos.push({ dataUrl: p, label: status + '_' + item.id.replace(/[^a-zA-Z0-9]/g,'_') + '_' + (pi+1) });
+          });
+        }
+      }
+    }
+  }
+  return fotos;
+}
+
+function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos) {
+  fotos = fotos || [];
   let modal = document.getElementById('modal-relatorio-final');
   if (!modal) {
     modal = document.createElement('div');
@@ -2479,6 +2550,9 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
         <div id="modal-rel-sub" style="font-size:13px;color:#5d7261;text-align:center;margin-bottom:20px;"></div>
         <button id="modal-rel-enviar" style="display:block;width:100%;padding:15px;background:#1a5e3a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
           ✉️ Enviar Relatório + Arquivo Dashboard
+        </button>
+        <button id="modal-rel-fotos" style="display:none;width:100%;padding:15px;background:#b45309;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
+          📸 Enviar com Fotos
         </button>
         <button onclick="document.getElementById('modal-relatorio-final').style.display='none'" style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;cursor:pointer;">
           Fechar
@@ -2493,6 +2567,19 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
   if (sub) sub.textContent = arquivoJSON
     ? 'Envia o relatório com o arquivo rondas_agrivalle.json anexado'
     : 'Toque para abrir o e-mail com o relatório completo';
+  const btnFotos = document.getElementById('modal-rel-fotos');
+  if (btnFotos) {
+    if (fotos.length > 0) {
+      btnFotos.style.display = 'block';
+      btnFotos.textContent = '📸 Enviar com Fotos (' + fotos.length + ' foto' + (fotos.length > 1 ? 's' : '') + ')';
+      btnFotos.onclick = async () => {
+        modal.style.display = 'none';
+        await compartilharRelatorioComFotos(assunto, corpo, fotos, mailto);
+      };
+    } else {
+      btnFotos.style.display = 'none';
+    }
+  }
   if (btnEnviar) {
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';

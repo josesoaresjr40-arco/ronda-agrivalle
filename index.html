@@ -63,6 +63,21 @@ function carregarScript(src) {
     if (typeof jsQR !== 'undefined') break;
   }
 }
+
+// Esconde splash screen após animação
+(function() {
+  function hideSplash() {
+    var s = document.getElementById('splash-screen');
+    if (!s) return;
+    s.classList.add('hide');
+    setTimeout(function() { s.style.display = 'none'; }, 650);
+  }
+  // Esconde após 3 segundos (animação dura ~2.8s)
+  window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(hideSplash, 3000);
+  });
+})();
+
 window.addEventListener('DOMContentLoaded', () => {
   carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
   carregarJsQR();
@@ -84,6 +99,68 @@ window.addEventListener('DOMContentLoaded', () => {
     --radius: 12px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  /* ===== SPLASH SCREEN ===== */
+  #splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: linear-gradient(160deg, #e8500a 0%, #c73d00 60%, #a32e00 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    transition: opacity 0.6s ease;
+  }
+  #splash-screen.hide {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .splash-logo {
+    font-size: 52px;
+    animation: splashPulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes splashPulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.12); }
+  }
+  .splash-title {
+    font-family: 'Poppins', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 2px;
+    text-align: center;
+    line-height: 1.4;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 3px solid rgba(255,255,255,0.8);
+    width: 0;
+    animation: typewriter 1.8s steps(28, end) 0.3s forwards,
+               blink 0.7s step-end 0.3s 3;
+  }
+  .splash-sub {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 3px;
+    opacity: 0;
+    animation: fadeInSub 0.6s ease 2.3s forwards;
+  }
+  @keyframes typewriter {
+    from { width: 0; }
+    to   { width: 22ch; border-right-color: transparent; }
+  }
+  @keyframes blink {
+    50% { border-right-color: transparent; }
+  }
+  @keyframes fadeInSub {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     .header, .bottom-nav, .resp-bar { display: none !important; }
@@ -313,6 +390,12 @@ window.addEventListener('DOMContentLoaded', () => {
 </style>
 </head>
 <body>
+<!-- SPLASH SCREEN -->
+<div id="splash-screen">
+  <div class="splash-logo">🔧</div>
+  <div class="splash-title">RONDA DE MANUTENÇÃO</div>
+  <div class="splash-sub">AGRIVALLE BRASIL</div>
+</div>
 
 <!-- ====== TELAS ====== -->
 
@@ -2338,67 +2421,120 @@ function gerarArquivoJSON(datas, nomeArquivo) {
 }
 
 
-// ===== FOTOS POR WHATSAPP =====
-async function enviarFotosWhatsApp() {
+// ===== FOTOS POR WHATSAPP — uma pendência por vez =====
+function enviarFotosWhatsApp() {
   const date = todayKey();
   const data = loadData(date);
   const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
 
-  // Coletar fotos de todos os itens com fotos (prioridade NOK)
-  const grupos = []; // { nomeEquip: '', fotos: [File] }
+  // Coletar apenas itens NOK que têm foto
+  const pendencias = [];
   const seen = new Set();
-
   for (const [turnKey, td] of Object.entries(CHECKLIST_DATA)) {
     for (const c of td.conjuntos) {
       for (const item of c.itens) {
         const d = data[item.id];
-        if (!d?.photos?.length) continue;
-        const chave = item.id;
-        if (seen.has(chave)) continue;
-        seen.add(chave);
-        const status = d.status === 'nok' ? '❌ NOK' : '✅ OK';
-        const nomeEquip = c.nome + ' – ' + item.comp;
-        const files = [];
-        d.photos.forEach((p, i) => {
-          const file = base64ToFile(p, (c.nome + '_' + item.comp + '_' + (i+1) + '.jpg')
-            .replace(/[^a-zA-Z0-9_.-]/g, '_').substring(0, 60));
-          if (file) files.push(file);
+        if (d?.status !== 'nok' || !d?.photos?.length) continue;
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        pendencias.push({
+          conjunto: c.nome,
+          equip: item.comp,
+          motivo: d.motivo || '',
+          photos: d.photos,
+          enviado: false
         });
-        if (files.length) grupos.push({ nomeEquip, status, files });
       }
     }
   }
 
-  if (!grupos.length) {
-    showToast('Nenhuma foto registrada na ronda de hoje.');
+  if (!pendencias.length) {
+    showToast('Nenhuma pendência NOK com foto hoje.');
     return;
   }
 
-  // Texto resumo para acompanhar as fotos
-  const linhasTexto = ['📸 *Fotos Ronda Manutenção – ' + dataFmt + '*', ''];
-  grupos.forEach(g => linhasTexto.push(g.status + ' ' + g.nomeEquip));
-  const textoResumo = linhasTexto.join('\n');
+  // Criar/mostrar modal
+  let modal = document.getElementById('modal-wats-fotos');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'modal-wats-fotos';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;justify-content:center;';
 
-  // Juntar todos os arquivos
-  const todosFiles = grupos.flatMap(g => g.files);
+  const lista = pendencias.map((p, idx) => `
+    <div id="wats-item-${idx}" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
+      <img src="${p.photos[0]}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;color:#dc2626;font-weight:700;">❌ NOK — ${p.conjunto}</div>
+        <div style="font-size:13px;font-weight:600;color:#1a2e4a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.equip}</div>
+        ${p.motivo ? `<div style="font-size:11px;color:#6b7280;">Motivo: ${p.motivo}</div>` : ''}
+      </div>
+      <button onclick="compartilharPendenciaWats(${idx})" id="wats-btn-${idx}"
+        style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-size:22px;cursor:pointer;flex-shrink:0;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.963 2C6.476 2 2 6.477 2 11.963c0 1.896.523 3.665 1.432 5.181L2 22l5.028-1.398C8.49 21.481 10.194 22 11.963 22c5.488 0 9.963-4.477 9.963-9.963C21.926 6.477 17.45 2 11.963 2z"/></svg>
+      </button>
+    </div>`).join('');
 
-  // Tenta Web Share com arquivos (abre seletor de app — escolha WhatsApp)
-  if (navigator.share && navigator.canShare) {
-    const shareData = { text: textoResumo, files: todosFiles };
-    if (navigator.canShare(shareData)) {
-      try {
-        await navigator.share(shareData);
-        return;
-      } catch(e) {
-        if (e.name === 'AbortError') return;
+  modal.innerHTML = `
+    <div style="background:#f3f4f6;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;box-sizing:border-box;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:#1a2e4a;">📲 Fotos por WhatsApp</div>
+          <div style="font-size:12px;color:#6b7280;">${pendencias.length} pendência(s) com foto — ${dataFmt}</div>
+        </div>
+        <button onclick="document.getElementById('modal-wats-fotos').remove()"
+          style="background:#e5e7eb;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;">${lista}</div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function compartilharPendenciaWats(idx) {
+  const date = todayKey();
+  const data = loadData(date);
+  const pendencias = [];
+  const seen = new Set();
+  for (const [turnKey, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.status !== 'nok' || !d?.photos?.length) continue;
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        pendencias.push({ conjunto: c.nome, equip: item.comp, motivo: d.motivo || '', photos: d.photos });
       }
     }
   }
+  const p = pendencias[idx];
+  if (!p) return;
 
-  // Fallback: WhatsApp deep link só com texto (sem imagem)
-  showToast('Compartilhamento de arquivos não suportado neste dispositivo.');
-  const waUrl = 'https://wa.me/?text=' + encodeURIComponent(textoResumo);
-  window.open(waUrl, '_blank');
+  const texto = '❌ *NOK — ' + p.conjunto + '*\n' +
+    '🔧 ' + p.equip +
+    (p.motivo ? '\n⚠️ Motivo: ' + p.motivo : '') +
+    '\n\n📅 Ronda Agrivalle – ' + new Date().toLocaleDateString('pt-BR');
+
+  const files = p.photos.map((ph, i) => base64ToFile(ph,
+    (p.conjunto + '_' + p.equip + '_' + (i+1) + '.jpg').replace(/[^a-zA-Z0-9_.-]/g,'_').substring(0,60)
+  )).filter(Boolean);
+
+  const btn = document.getElementById('wats-btn-' + idx);
+  const item = document.getElementById('wats-item-' + idx);
+
+  if (navigator.share && navigator.canShare && files.length) {
+    const sd = { text: texto, files };
+    if (navigator.canShare(sd)) {
+      try {
+        await navigator.share(sd);
+        // Marca como enviado
+        if (btn) btn.style.background = '#6b7280';
+        if (item) item.style.opacity = '0.5';
+        return;
+      } catch(e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  // Fallback texto
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
 }
 
 function enviarRelatorioCompleto() {

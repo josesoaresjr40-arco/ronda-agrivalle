@@ -1027,26 +1027,30 @@ function liberarSecao(conjId) {
 function secaoLiberada(conjId) { return getSecoesLiberadas().includes(conjId); }
 
 function todayKey() {
-  return new Date().toISOString().slice(0,10);
+  // USA data LOCAL (não UTC) para evitar virada de dia às 21h no Brasil (UTC-3)
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-// Retorna a data da ronda ativa — mantém data anterior após meia-noite para turnos noturnos
+// Retorna a data da ronda ativa — mantém indefinidamente até o usuário clicar em "Limpar Dia"
 function getRondaDate() {
   try {
-    const stored = localStorage.getItem('ronda_data_ativa');
-    if (stored) {
-      const storedDay = new Date(stored + 'T00:00:00');
-      const today = new Date(todayKey() + 'T00:00:00');
-      const diffDays = (today - storedDay) / 86400000;
-      if (diffDays <= 1) return stored; // mesmo dia ou dia anterior — mantém ativa
-    }
+    const stored = localStorage.getItem('ronda_data_ativa') || Store.get('ronda_data_ativa');
+    if (stored) return stored; // nunca apaga automaticamente — só via clearDayData()
   } catch(e) {}
   return todayKey();
 }
 
 function yesterdayKey() {
   const d = new Date(); d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0,10);
+  // USA data LOCAL para consistência com todayKey()
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // ===== RESPONSÁVEL =====
@@ -1192,8 +1196,15 @@ function startRonda(turn) {
     return;
   }
   currentTurn = turn;
-  // Salva a data de início da ronda — mantém dados após meia-noite para turnos noturnos
-  try { localStorage.setItem('ronda_data_ativa', todayKey()); } catch(e) {}
+  // Define data da ronda APENAS se ainda não estiver definida (não sobrescreve ronda em andamento)
+  try {
+    if (!localStorage.getItem('ronda_data_ativa') && !Store.get('ronda_data_ativa')) {
+      localStorage.setItem('ronda_data_ativa', todayKey());
+      Store.set('ronda_data_ativa', todayKey());
+    }
+  } catch(e) {
+    if (!Store.get('ronda_data_ativa')) Store.set('ronda_data_ativa', todayKey());
+  }
   const tData = CHECKLIST_DATA[turn];
   document.getElementById('checklist-title').textContent = `Ronda ${tData.nome}`;
   document.getElementById('checklist-badge').textContent = tData.nome.toUpperCase();
@@ -2228,7 +2239,8 @@ async function copiarJsonParaClipboard() {
   const rows = [];
   for (let d = 0; d < 60; d++) {
     const dt = new Date(); dt.setDate(dt.getDate() - d);
-    const dateKey = dt.toISOString().slice(0,10);
+    const _dy = dt.getFullYear(), _dm = String(dt.getMonth()+1).padStart(2,'0'), _dd = String(dt.getDate()).padStart(2,'0');
+    const dateKey = `${_dy}-${_dm}-${_dd}`;
     for (const turnKey of ['1','2']) {
       const td = CHECKLIST_DATA[turnKey];
       const data = loadData(dateKey);
@@ -2288,7 +2300,8 @@ async function exportarParaDashboard() {
   // Varre os últimos 60 dias
   for (let d = 0; d < 60; d++) {
     const dt = new Date(); dt.setDate(dt.getDate() - d);
-    const dateKey = dt.toISOString().slice(0,10);
+    const _dy2 = dt.getFullYear(), _dm2 = String(dt.getMonth()+1).padStart(2,'0'), _dd2 = String(dt.getDate()).padStart(2,'0');
+    const dateKey = `${_dy2}-${_dm2}-${_dd2}`;
     for (const turnKey of ['1','2']) {
       const td = CHECKLIST_DATA[turnKey];
       const enviada = localStorage.getItem('ronda_enviada_' + turnKey + '_' + dateKey);
@@ -3507,8 +3520,8 @@ function importarPlanilhaRonda(file) {
 
 // ===== CLEAR =====
 function clearDayData() {
-  if (!confirm('Limpar todos os dados de hoje (inspeções, nome e seções liberadas)? Esta ação não pode ser desfeita.')) return;
-  const date = todayKey();
+  if (!confirm('Limpar todos os dados da ronda ativa (inspeções, nome e seções liberadas)? Esta ação não pode ser desfeita.')) return;
+  const date = getRondaDate(); // Usa a data da ronda ativa, não obrigatoriamente hoje
   // Dados da ronda
   Store.remove('ronda_' + date);
   // Nome do responsável
@@ -3526,16 +3539,19 @@ function clearDayData() {
       localStorage.removeItem('ronda_fim_' + t + '_' + date);
       localStorage.removeItem('ronda_enviada_' + t + '_' + date);
     });
-    // Seções liberadas por QR hoje
+    // Seções liberadas por QR
     localStorage.removeItem('secoes_lib_' + date);
     ['1','2'].forEach(t => {
       localStorage.removeItem('ronda_acumulado_' + t + '_' + date);
       localStorage.removeItem('ronda_pausada_' + t + '_' + date);
     });
+    // Limpa a data ativa — próxima ronda começa do zero
+    localStorage.removeItem('ronda_data_ativa');
+    Store.remove('ronda_data_ativa');
   } catch(e) {}
   updateHomeStats();
   renderEscalaApp();
-  showToast('🗑️ Dados de hoje apagados');
+  showToast('🗑️ Dados da ronda apagados');
 }
 
 // ===== UTILS =====

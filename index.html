@@ -225,7 +225,10 @@ window.addEventListener('DOMContentLoaded', () => {
   .conjunto-name { flex: 1; font-size: 15px; font-weight: 600; }
   .conjunto-badge { background: var(--bg); border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
   .conjunto-badge.done { background: #dcfce7; color: var(--success); }
+  .conjunto-badge.done-nok { background: #fef3c7; color: #b45309; }
   .conjunto-badge.partial { background: #fef3c7; color: var(--warning); }
+  .conjunto-header.executado { background: #f0fdf4; border-left: 4px solid #16a34a; }
+  .conjunto-header.executado-nok { background: #fffbeb; border-left: 4px solid #d97706; }
   .conjunto-chevron { color: var(--text-muted); transition: transform 0.2s; font-size: 16px; }
   .conjunto-card.open .conjunto-chevron { transform: rotate(90deg); }
   .conjunto-items { display: none; background: #fbfbf2; }
@@ -1018,11 +1021,11 @@ let conjEsperado = null;    // seção aguardando leitura do QR
 let pendingItemId = null;   // item a abrir após liberar a seção por QR
 // Seções já liberadas hoje (persistidas por data para sobreviver a refresh)
 function getSecoesLiberadas() {
-  try { return JSON.parse(localStorage.getItem('secoes_lib_' + todayKey()) || '[]'); } catch(e) { return []; }
+  try { return JSON.parse(localStorage.getItem('secoes_lib_' + getRondaDate()) || '[]'); } catch(e) { return []; }
 }
 function liberarSecao(conjId) {
   const list = getSecoesLiberadas();
-  if (!list.includes(conjId)) { list.push(conjId); localStorage.setItem('secoes_lib_' + todayKey(), JSON.stringify(list)); }
+  if (!list.includes(conjId)) { list.push(conjId); localStorage.setItem('secoes_lib_' + getRondaDate(), JSON.stringify(list)); }
 }
 function secaoLiberada(conjId) { return getSecoesLiberadas().includes(conjId); }
 
@@ -1055,7 +1058,6 @@ function yesterdayKey() {
 
 function tomorrowKey() {
   const d = new Date(); d.setDate(d.getDate() + 1);
-  // USA data LOCAL para consistência com todayKey()
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -1101,6 +1103,7 @@ function showScreen(id) {
   const noNav = ['screen-qr-scan'];
   document.getElementById('bottom-nav').style.display = noNav.includes(id) ? 'none' : 'flex';
   if (id === 'screen-home') updateHomeStats();
+  if (id === 'screen-checklist') { try { renderChecklist(currentTurn); } catch(e) {} }
   if (id === 'screen-pendencias') {
     document.getElementById('pend-date').value = todayKey();
     renderPendencias();
@@ -1205,6 +1208,7 @@ function startRonda(turn) {
     return;
   }
   currentTurn = turn;
+  try { localStorage.setItem('last_turn', turn); } catch(e) {}
   // Define data da ronda APENAS se ainda não estiver definida (não sobrescreve ronda em andamento)
   try {
     if (!localStorage.getItem('ronda_data_ativa') && !Store.get('ronda_data_ativa')) {
@@ -1244,10 +1248,12 @@ function renderChecklist(turn) {
     card.className = 'conjunto-card' + (hasNok ? '' : '');
     card.id = 'conjunto-' + c.id;
     let badgeClass = '', badgeTxt = `${doneCount}/${c.itens.length}`;
-    if (allDone && c.itens.every(i => dataDay[i.id]?.status === 'ok')) { badgeClass = 'done'; }
+    const allOk = allDone && !hasNok;
+    if (allDone && allOk) { badgeClass = 'done'; badgeTxt = '✅ EXECUTADO'; }
+    else if (allDone && hasNok) { badgeClass = 'done-nok'; badgeTxt = '⚠️ EXECUTADO'; }
     else if (someDone) { badgeClass = 'partial'; }
     card.innerHTML = `
-      <div class="conjunto-header" onclick="toggleConjunto('${c.id}')">
+      <div class="conjunto-header${allDone ? (hasNok ? ' executado-nok' : ' executado') : ''}" onclick="toggleConjunto('${c.id}')">
         <span class="conjunto-icon">${c.icon}</span>
         <span class="conjunto-name">${c.nome}</span>
         <span class="conjunto-badge ${badgeClass}">${badgeTxt}</span>
@@ -2623,7 +2629,7 @@ function abrirSeletorDataEmail() {
   const hoje = todayKey();
   const ontem = yesterdayKey();
   const amanha = tomorrowKey();
-  const hojeRonda = getRondaDate(); // pode ser ontem se turno noturno
+  const hojeRonda = getRondaDate();
   const dataHojeFmt = new Date(hoje + 'T12:00:00').toLocaleDateString('pt-BR');
   const dataOntemFmt = new Date(ontem + 'T12:00:00').toLocaleDateString('pt-BR');
   const dataAmanhaFmt = new Date(amanha + 'T12:00:00').toLocaleDateString('pt-BR');
@@ -3253,6 +3259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHomeStats();
     try { document.getElementById('pend-date').value = todayKey(); } catch(e){}
     try { document.getElementById('export-date').value = todayKey(); } catch(e){}
+    try { var lt = localStorage.getItem('last_turn'); if (lt) currentTurn = lt; } catch(e) {}
     const savedResp = getResp();
     if (savedResp) { try { document.getElementById('resp-input').value = savedResp; } catch(e){} }
     if ('serviceWorker' in navigator) {
@@ -3553,6 +3560,7 @@ function clearDayData() {
     });
     // Seções liberadas por QR
     localStorage.removeItem('secoes_lib_' + date);
+    try { localStorage.removeItem('secoes_lib_' + todayKey()); } catch(e) {}
     ['1','2'].forEach(t => {
       localStorage.removeItem('ronda_acumulado_' + t + '_' + date);
       localStorage.removeItem('ronda_pausada_' + t + '_' + date);

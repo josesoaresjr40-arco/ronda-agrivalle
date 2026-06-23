@@ -63,6 +63,21 @@ function carregarScript(src) {
     if (typeof jsQR !== 'undefined') break;
   }
 }
+
+// Esconde splash screen após animação
+(function() {
+  function hideSplash() {
+    var s = document.getElementById('splash-screen');
+    if (!s) return;
+    s.classList.add('hide');
+    setTimeout(function() { s.style.display = 'none'; }, 650);
+  }
+  // Esconde após 3 segundos (animação dura ~2.8s)
+  window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(hideSplash, 3000);
+  });
+})();
+
 window.addEventListener('DOMContentLoaded', () => {
   carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
   carregarJsQR();
@@ -84,6 +99,73 @@ window.addEventListener('DOMContentLoaded', () => {
     --radius: 12px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  /* ===== SPLASH SCREEN ===== */
+  #splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: linear-gradient(160deg, #e8500a 0%, #c73d00 60%, #a32e00 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    transition: opacity 0.6s ease;
+  }
+  #splash-screen.hide {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .splash-logo {
+    font-size: 52px;
+    animation: splashPulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes splashPulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.12); }
+  }
+  .splash-title {
+    font-family: 'Poppins', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 4px;
+    text-align: center;
+    line-height: 1.25;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    opacity: 0;
+    animation: fadeInTitle 0.8s ease 0.4s forwards;
+  }
+  .splash-sub {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 3px;
+    opacity: 0;
+    animation: fadeInSub 0.6s ease 1.2s forwards;
+  }
+  .splash-tagline {
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-style: italic;
+    color: rgba(255,255,255,0.7);
+    text-align: center;
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+    opacity: 0;
+    animation: fadeInSub 0.6s ease 1.6s forwards;
+  }
+  @keyframes fadeInTitle {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeInSub {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     .header, .bottom-nav, .resp-bar { display: none !important; }
@@ -313,6 +395,13 @@ window.addEventListener('DOMContentLoaded', () => {
 </style>
 </head>
 <body>
+<!-- SPLASH SCREEN -->
+<div id="splash-screen">
+  <div class="splash-logo">🔧</div>
+  <div class="splash-title">RONDA<br>DE<br>MANUTENÇÃO</div>
+  <div class="splash-sub">Agrivalle Brasil</div>
+  <div class="splash-tagline">A manutenção que<br>anota, controla<br>e informa.</div>
+</div>
 
 <!-- ====== TELAS ====== -->
 
@@ -483,18 +572,57 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="export-sub">Gerar etiquetas QR para colar nos equipamentos</div>
       </div>
     </div>
-    <div class="export-card" onclick="enviarRelatorioCompleto()" style="padding:24px 20px;">
+    <div class="export-card" onclick="abrirSeletorDataEmail()" style="padding:24px 20px;">
       <div class="export-icon" style="font-size:40px;">📧</div>
       <div class="export-info">
         <div class="export-title" style="font-size:17px;">Enviar Relatório por Email</div>
         <div class="export-sub">Relatório completo com tempos, pendências e itens verificados</div>
       </div>
     </div>
-    <div class="export-card" onclick="document.getElementById('ronda-xlsx-input').click()" style="padding:24px 20px;">
+    <div class="export-card" onclick="abrirSenhaImportacao()" style="padding:24px 20px;">
       <div class="export-icon" style="font-size:40px;">📥</div>
       <div class="export-info">
         <div class="export-title" style="font-size:17px;">Importar Planilha de Ronda</div>
         <div class="export-sub" id="import-ronda-status">Carregar dados preenchidos no Excel de atualização</div>
+      </div>
+    </div>
+
+    <!-- MODAL SENHA IMPORTAÇÃO -->
+    <div id="modal-senha-import" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:20px;padding:28px 24px;width:88%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:40px;margin-bottom:8px;">🔒</div>
+          <div style="font-size:17px;font-weight:700;color:#1a2e4a;">Acesso Restrito</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:4px;">Digite a senha para importar a planilha</div>
+        </div>
+        <div style="position:relative;margin-bottom:16px;">
+          <input type="password" id="input-senha-import"
+            placeholder="Senha de acesso"
+            style="width:100%;padding:14px 48px 14px 16px;border:2px solid #e5e7eb;border-radius:12px;font-size:15px;font-family:Poppins,sans-serif;outline:none;box-sizing:border-box;"
+            onkeydown="if(event.key==='Enter')confirmarSenhaImportacao()"
+            onfocus="this.style.borderColor='#e8500a'"
+            onblur="this.style.borderColor='#e5e7eb'">
+          <button onclick="toggleSenhaVisivel()" id="btn-olho-senha"
+            style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;">👁</button>
+        </div>
+        <div id="erro-senha-import" style="display:none;color:#dc2626;font-size:12px;text-align:center;margin-bottom:12px;">❌ Senha incorreta. Tente novamente.</div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="fecharSenhaImportacao()"
+            style="flex:1;padding:13px;border:2px solid #e5e7eb;border-radius:12px;background:#fff;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;font-family:Poppins,sans-serif;">
+            Cancelar
+          </button>
+          <button onclick="confirmarSenhaImportacao()"
+            style="flex:1;padding:13px;border:none;border-radius:12px;background:#e8500a;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:Poppins,sans-serif;">
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="export-card" onclick="enviarFotosWhatsApp()" style="padding:24px 20px;">
+      <div class="export-icon" style="font-size:40px;">📲</div>
+      <div class="export-info">
+        <div class="export-title" style="font-size:17px;">Enviar Fotos por WhatsApp</div>
+        <div class="export-sub">Fotos dos itens NOK com nome do equipamento</div>
       </div>
     </div>
     <input type="file" id="ronda-xlsx-input" accept=".xlsx,.xls" style="display:none" onchange="importarPlanilhaRonda(this.files[0]);this.value=''">
@@ -851,6 +979,12 @@ CHECKLIST_DATA["1"].nome = "Turno Dia";
 
 // ===== EMAILS DESTINO =====
 const EMAIL_DESTINOS = 'renan.cruz@agrivalle.com.br,jose.soares@agrivalle.com.br';
+
+// ===== EMAILJS — preencha após criar conta em emailjs.com =====
+const EMAILJS_PUBLIC_KEY   = '';   // ex: 'user_xxxxxxxxxxxxxxxxxxx'
+const EMAILJS_SERVICE_ID   = '';   // ex: 'service_xxxxxxx'
+const EMAILJS_TEMPLATE_ID  = '';   // ex: 'template_xxxxxxx'
+// ================================================================
 // URL do Web App (Google Apps Script) para envio automático de e-mails com anexos.
 // Instruções no arquivo "Configurar Envio Automatico.txt" da pasta Ronda.
 const ENVIO_AUTO_URL = '';
@@ -893,7 +1027,30 @@ function liberarSecao(conjId) {
 function secaoLiberada(conjId) { return getSecoesLiberadas().includes(conjId); }
 
 function todayKey() {
-  return new Date().toISOString().slice(0,10);
+  // USA data LOCAL (não UTC) para evitar virada de dia às 21h no Brasil (UTC-3)
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Retorna a data da ronda ativa — mantém indefinidamente até o usuário clicar em "Limpar Dia"
+function getRondaDate() {
+  try {
+    const stored = localStorage.getItem('ronda_data_ativa') || Store.get('ronda_data_ativa');
+    if (stored) return stored; // nunca apaga automaticamente — só via clearDayData()
+  } catch(e) {}
+  return todayKey();
+}
+
+function yesterdayKey() {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  // USA data LOCAL para consistência com todayKey()
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // ===== RESPONSÁVEL =====
@@ -918,14 +1075,14 @@ function saveData(date, data) {
 }
 
 function getItemData(itemId, date) {
-  const d = loadData(date || todayKey());
+  const d = loadData(date || getRondaDate());
   return d[itemId] || { status: null, obs: '', photos: [] };
 }
 
 function setItemData(itemId, val, date) {
-  const d = loadData(date || todayKey());
+  const d = loadData(date || getRondaDate());
   d[itemId] = val;
-  saveData(date || todayKey(), d);
+  saveData(date || getRondaDate(), d);
 }
 
 // ===== NAVEGAÇÃO =====
@@ -1012,7 +1169,7 @@ function updateNavActive(id) {
 
 // ===== HOME =====
 function updateHomeStats() {
-  const d = loadData(todayKey());
+  const d = loadData(getRondaDate());
   let ok = 0, nok = 0;
   for (const v of Object.values(d)) {
     if (v.status === 'ok') ok++;
@@ -1039,6 +1196,15 @@ function startRonda(turn) {
     return;
   }
   currentTurn = turn;
+  // Define data da ronda APENAS se ainda não estiver definida (não sobrescreve ronda em andamento)
+  try {
+    if (!localStorage.getItem('ronda_data_ativa') && !Store.get('ronda_data_ativa')) {
+      localStorage.setItem('ronda_data_ativa', todayKey());
+      Store.set('ronda_data_ativa', todayKey());
+    }
+  } catch(e) {
+    if (!Store.get('ronda_data_ativa')) Store.set('ronda_data_ativa', todayKey());
+  }
   const tData = CHECKLIST_DATA[turn];
   document.getElementById('checklist-title').textContent = `Ronda ${tData.nome}`;
   document.getElementById('checklist-badge').textContent = tData.nome.toUpperCase();
@@ -1054,7 +1220,7 @@ function renderChecklist(turn) {
   atualizarBotaoPausa();
   const tData = CHECKLIST_DATA[turn];
   const body = document.getElementById('checklist-body');
-  const date = todayKey();
+  const date = getRondaDate();
   const dataDay = loadData(date);
   body.innerHTML = '';
   let totalItems = 0, checkedItems = 0;
@@ -1153,7 +1319,7 @@ function findConjunto(itemId) {
 function updateProgress(done, total) {
   const pct = total ? Math.round(done / total * 100) : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
-  const dur = duracaoRonda(currentTurn, todayKey());
+  const dur = duracaoRonda(currentTurn, getRondaDate());
   document.getElementById('progress-text').textContent = `${done} de ${total} verificados (${pct}%)` + (dur ? ` · ⏱ ${dur}` : '');
 }
 
@@ -1312,7 +1478,7 @@ function saveItem() {
 function backToChecklist() {
   const conjId = findConjunto(currentItemId);
   const tData = CHECKLIST_DATA[currentTurn];
-  const data = loadData(todayKey());
+  const data = loadData(getRondaDate());
 
   // Verifica se ainda tem item pendente NA MESMA SEÇÃO
   let conjAtual = null;
@@ -1936,7 +2102,7 @@ function exportPendencias() {
 
 // ===== PAUSA DA RONDA =====
 function pausarRonda() {
-  const date = todayKey();
+  const date = getRondaDate();
   const turn = currentTurn;
   const isPausado = localStorage.getItem('ronda_pausada_' + turn + '_' + date) === '1';
 
@@ -1964,7 +2130,7 @@ function pausarRonda() {
 }
 
 function atualizarBotaoPausa() {
-  const date = todayKey();
+  const date = getRondaDate();
   const isPausado = localStorage.getItem('ronda_pausada_' + currentTurn + '_' + date) === '1';
   const btn = document.getElementById('btn-pausar');
   if (!btn) return;
@@ -1978,7 +2144,7 @@ function atualizarBotaoPausa() {
 // ===== TEMPO DE EXECUÇÃO DA RONDA =====
 function marcarInicioRonda() {
   try {
-    const k = 'ronda_inicio_' + currentTurn + '_' + todayKey();
+    const k = 'ronda_inicio_' + currentTurn + '_' + getRondaDate();
     if (!localStorage.getItem(k)) localStorage.setItem(k, Date.now());
   } catch(e) {}
 }
@@ -2027,7 +2193,7 @@ async function enviarAlertaNOKAuto(itemId) {
 }
 
 async function verificarEnvioAutomatico() {
-  const date = todayKey();
+  const date = getRondaDate();
   const td = CHECKLIST_DATA[currentTurn];
   if (!td) return;
   const flag = 'ronda_enviada_' + currentTurn + '_' + date;
@@ -2073,7 +2239,8 @@ async function copiarJsonParaClipboard() {
   const rows = [];
   for (let d = 0; d < 60; d++) {
     const dt = new Date(); dt.setDate(dt.getDate() - d);
-    const dateKey = dt.toISOString().slice(0,10);
+    const _dy = dt.getFullYear(), _dm = String(dt.getMonth()+1).padStart(2,'0'), _dd = String(dt.getDate()).padStart(2,'0');
+    const dateKey = `${_dy}-${_dm}-${_dd}`;
     for (const turnKey of ['1','2']) {
       const td = CHECKLIST_DATA[turnKey];
       const data = loadData(dateKey);
@@ -2133,7 +2300,8 @@ async function exportarParaDashboard() {
   // Varre os últimos 60 dias
   for (let d = 0; d < 60; d++) {
     const dt = new Date(); dt.setDate(dt.getDate() - d);
-    const dateKey = dt.toISOString().slice(0,10);
+    const _dy2 = dt.getFullYear(), _dm2 = String(dt.getMonth()+1).padStart(2,'0'), _dd2 = String(dt.getDate()).padStart(2,'0');
+    const dateKey = `${_dy2}-${_dm2}-${_dd2}`;
     for (const turnKey of ['1','2']) {
       const td = CHECKLIST_DATA[turnKey];
       const enviada = localStorage.getItem('ronda_enviada_' + turnKey + '_' + dateKey);
@@ -2324,77 +2492,262 @@ function gerarArquivoJSON(datas, nomeArquivo) {
   return new File([JSON.stringify(merged)], nomeArquivo, { type: 'application/json' });
 }
 
-function enviarRelatorioCompleto() {
-  const date = todayKey();
+
+// ===== FOTOS POR WHATSAPP — uma pendência por vez =====
+function enviarFotosWhatsApp() {
+  const date = getRondaDate();
+  const data = loadData(date);
   const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+
+  // Coletar apenas itens NOK que têm foto
+  const pendencias = [];
+  const seen = new Set();
+  for (const [turnKey, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.status !== 'nok' || !d?.photos?.length) continue;
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        pendencias.push({
+          conjunto: c.nome,
+          equip: item.comp,
+          motivo: d.motivo || '',
+          photos: d.photos,
+          enviado: false
+        });
+      }
+    }
+  }
+
+  if (!pendencias.length) {
+    showToast('Nenhuma pendência NOK com foto hoje.');
+    return;
+  }
+
+  // Criar/mostrar modal
+  let modal = document.getElementById('modal-wats-fotos');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'modal-wats-fotos';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;justify-content:center;';
+
+  const lista = pendencias.map((p, idx) => `
+    <div id="wats-item-${idx}" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
+      <img src="${p.photos[0]}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;color:#dc2626;font-weight:700;">❌ NOK — ${p.conjunto}</div>
+        <div style="font-size:13px;font-weight:600;color:#1a2e4a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.equip}</div>
+        ${p.motivo ? `<div style="font-size:11px;color:#6b7280;">Motivo: ${p.motivo}</div>` : ''}
+      </div>
+      <button onclick="compartilharPendenciaWats(${idx})" id="wats-btn-${idx}"
+        style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-size:22px;cursor:pointer;flex-shrink:0;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.963 2C6.476 2 2 6.477 2 11.963c0 1.896.523 3.665 1.432 5.181L2 22l5.028-1.398C8.49 21.481 10.194 22 11.963 22c5.488 0 9.963-4.477 9.963-9.963C21.926 6.477 17.45 2 11.963 2z"/></svg>
+      </button>
+    </div>`).join('');
+
+  modal.innerHTML = `
+    <div style="background:#f3f4f6;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;box-sizing:border-box;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:#1a2e4a;">📲 Fotos por WhatsApp</div>
+          <div style="font-size:12px;color:#6b7280;">${pendencias.length} pendência(s) com foto — ${dataFmt}</div>
+        </div>
+        <button onclick="document.getElementById('modal-wats-fotos').remove()"
+          style="background:#e5e7eb;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer;">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;">${lista}</div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function compartilharPendenciaWats(idx) {
+  const date = getRondaDate();
+  const data = loadData(date);
+  const pendencias = [];
+  const seen = new Set();
+  for (const [turnKey, td] of Object.entries(CHECKLIST_DATA)) {
+    for (const c of td.conjuntos) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.status !== 'nok' || !d?.photos?.length) continue;
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        pendencias.push({ conjunto: c.nome, equip: item.comp, motivo: d.motivo || '', photos: d.photos });
+      }
+    }
+  }
+  const p = pendencias[idx];
+  if (!p) return;
+
+  const texto = '❌ *NOK — ' + p.conjunto + '*\n' +
+    '🔧 ' + p.equip +
+    (p.motivo ? '\n⚠️ Motivo: ' + p.motivo : '') +
+    '\n\n📅 Ronda Agrivalle – ' + new Date().toLocaleDateString('pt-BR');
+
+  const files = p.photos.map((ph, i) => base64ToFile(ph,
+    (p.conjunto + '_' + p.equip + '_' + (i+1) + '.jpg').replace(/[^a-zA-Z0-9_.-]/g,'_').substring(0,60)
+  )).filter(Boolean);
+
+  const btn = document.getElementById('wats-btn-' + idx);
+  const item = document.getElementById('wats-item-' + idx);
+
+  if (navigator.share && navigator.canShare && files.length) {
+    const sd = { text: texto, files };
+    if (navigator.canShare(sd)) {
+      try {
+        await navigator.share(sd);
+        // Marca como enviado
+        if (btn) btn.style.background = '#6b7280';
+        if (item) item.style.opacity = '0.5';
+        return;
+      } catch(e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  // Fallback texto
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+}
+
+// ===== SELETOR DE DATA PARA EMAIL =====
+function abrirSeletorDataEmail() {
+  const hoje = todayKey();
+  const ontem = yesterdayKey();
+  const hojeRonda = getRondaDate(); // pode ser ontem se turno noturno
+  const dataHojeFmt = new Date(hoje + 'T12:00:00').toLocaleDateString('pt-BR');
+  const dataOntemFmt = new Date(ontem + 'T12:00:00').toLocaleDateString('pt-BR');
+
+  // Detecta se há dados em cada data
+  const temHoje = Object.values(loadData(hoje)).some(v => v.status);
+  const temOntem = Object.values(loadData(ontem)).some(v => v.status);
+
+  let modal = document.getElementById('modal-seletor-data-email');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'modal-seletor-data-email';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;justify-content:center;';
+
+  const btnStyle = (ativo) => `display:block;width:100%;padding:16px;margin-bottom:10px;border:2px solid ${ativo ? '#1a5e3a' : '#e5e7eb'};border-radius:14px;background:${ativo ? '#f0fdf4' : '#fff'};font-family:Poppins,sans-serif;font-size:15px;font-weight:700;color:${ativo ? '#1a5e3a' : '#9ca3af'};cursor:${ativo ? 'pointer' : 'not-allowed'};text-align:left;`;
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;box-sizing:border-box;">
+      <div style="font-size:22px;text-align:center;margin-bottom:6px;">📅</div>
+      <div style="font-size:17px;font-weight:700;color:#1a2e4a;text-align:center;margin-bottom:4px;">Selecionar Período</div>
+      <div style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:20px;">Turno noturno? Combine os dois dias em um único e-mail.</div>
+
+      <button onclick="document.getElementById('modal-seletor-data-email').remove();enviarRelatorioCompleto(['${hoje}'])" style="${btnStyle(temHoje)}">
+        📅 Hoje — ${dataHojeFmt}
+        ${!temHoje ? '<span style="font-size:11px;font-weight:400;color:#9ca3af;"> (sem dados)</span>' : ''}
+      </button>
+
+      <button onclick="document.getElementById('modal-seletor-data-email').remove();enviarRelatorioCompleto(['${ontem}'])" style="${btnStyle(temOntem)}">
+        📅 Ontem — ${dataOntemFmt}
+        ${!temOntem ? '<span style="font-size:11px;font-weight:400;color:#9ca3af;"> (sem dados)</span>' : ''}
+      </button>
+
+      <button onclick="document.getElementById('modal-seletor-data-email').remove();enviarRelatorioCompleto(['${ontem}','${hoje}'])" style="${btnStyle(temHoje || temOntem)};background:${(temHoje||temOntem)?'#fff8f0':'#fff'};border-color:${(temHoje||temOntem)?'#e8500a':'#e5e7eb'};color:${(temHoje||temOntem)?'#e8500a':'#9ca3af'};">
+        🌙 Turno Noturno — ${dataOntemFmt} + ${dataHojeFmt}
+        <div style="font-size:11px;font-weight:400;color:#9ca3af;margin-top:2px;">Combina os dois dias em um único e-mail</div>
+      </button>
+
+      <button onclick="document.getElementById('modal-seletor-data-email').remove()"
+        style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;font-family:Poppins,sans-serif;cursor:pointer;margin-top:4px;">
+        Cancelar
+      </button>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function enviarRelatorioCompleto(dates) {
+  if (!dates) dates = [getRondaDate()];
   const resp = getResp() || 'Não informado';
   let linhas = [];
   linhas.push('RELATORIO COMPLETO - RONDA DE MANUTENCAO AGRIVALLE');
   linhas.push('====================================================');
-  linhas.push('Data: ' + dataFmt);
   linhas.push('Responsavel: ' + resp);
+  if (dates.length > 1) {
+    linhas.push('Periodo: ' + dates.map(d => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')).join(' + '));
+    linhas.push('(Turno Noturno — dois dias combinados)');
+  } else {
+    linhas.push('Data: ' + new Date(dates[0] + 'T12:00:00').toLocaleDateString('pt-BR'));
+  }
   linhas.push('');
 
-  for (const turnKey of ['1', '2']) {
-    const td = CHECKLIST_DATA[turnKey];
-    if (!td) continue;
-    const data = loadData(date);
-    const inicio = horaRonda('inicio', turnKey, date);
-    const fim = horaRonda('fim', turnKey, date);
-    const durTxt = duracaoRonda(turnKey, date);
-    let totalOK = 0, totalNOK = 0, totalTotal = 0;
-    const noks = [];
-
-    linhas.push('====================================================');
-    linhas.push('TURNO: ' + td.nome.toUpperCase());
-    if (inicio) linhas.push('Inicio: ' + inicio);
-    if (fim) linhas.push('Fim: ' + fim);
-    if (durTxt) linhas.push('Duracao: ' + durTxt);
-    linhas.push('');
-
-    for (const c of td.conjuntos) {
-      let secOK = 0, secNOK = 0;
-      for (const item of c.itens) {
-        totalTotal++;
-        const d = data[item.id];
-        if (d?.status === 'ok') { totalOK++; secOK++; }
-        else if (d?.status === 'nok') {
-          totalNOK++; secNOK++;
-          noks.push({ item, val: d, conjNome: c.nome });
-        }
-      }
-      const allOK = secOK === c.itens.length && secNOK === 0;
-      linhas.push((allOK ? '[OK]  ' : secNOK > 0 ? '[NOK] ' : '[---] ') + c.nome + ' (' + secOK + '/' + c.itens.length + (secNOK ? ', ' + secNOK + ' NOK' : '') + ')');
-      for (const item of c.itens) {
-        const d = data[item.id];
-        if (d?.status === 'nok') {
-          linhas.push('   X ' + item.comp + (d.motivo ? ' -> ' + d.motivo : ''));
-          if (d.obs) linhas.push('     Obs: ' + d.obs);
-        }
-      }
-    }
-    linhas.push('');
-    linhas.push('RESUMO ' + td.nome.toUpperCase() + ': ' + totalOK + ' OK | ' + totalNOK + ' NOK | ' + totalTotal + ' total');
-    if (noks.length > 0) {
+  for (const date of dates) {
+    const dataFmt = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR');
+    if (dates.length > 1) {
       linhas.push('');
-      linhas.push('PENDENCIAS NOK:');
-      noks.forEach((n, i) => {
-        linhas.push((i + 1) + '. [' + n.conjNome + '] ' + n.item.comp);
-        if (n.val.motivo) linhas.push('   Motivo: ' + n.val.motivo);
-        if (n.val.obs) linhas.push('   Obs: ' + n.val.obs);
-      });
+      linhas.push('══════════════════════════════════════════');
+      linhas.push('DIA: ' + dataFmt.toUpperCase());
+      linhas.push('══════════════════════════════════════════');
     }
-    linhas.push('');
+
+    for (const turnKey of ['1', '2']) {
+      const td = CHECKLIST_DATA[turnKey];
+      if (!td) continue;
+      const data = loadData(date);
+      const inicio = horaRonda('inicio', turnKey, date);
+      const fim = horaRonda('fim', turnKey, date);
+      const durTxt = duracaoRonda(turnKey, date);
+      const temDados = td.conjuntos.some(c => c.itens.some(i => data[i.id]?.status));
+      if (!temDados) continue; // pula turno sem dados neste dia
+      let totalOK = 0, totalNOK = 0, totalTotal = 0;
+      const noks = [];
+
+      linhas.push('====================================================');
+      linhas.push('TURNO: ' + td.nome.toUpperCase());
+      if (inicio) linhas.push('Inicio: ' + inicio);
+      if (fim) linhas.push('Fim: ' + fim);
+      if (durTxt) linhas.push('Duracao: ' + durTxt);
+      linhas.push('');
+
+      for (const c of td.conjuntos) {
+        let secOK = 0, secNOK = 0;
+        for (const item of c.itens) {
+          totalTotal++;
+          const d = data[item.id];
+          if (d?.status === 'ok') { totalOK++; secOK++; }
+          else if (d?.status === 'nok') {
+            totalNOK++; secNOK++;
+            noks.push({ item, val: d, conjNome: c.nome });
+          }
+        }
+        const allOK = secOK === c.itens.length && secNOK === 0;
+        linhas.push((allOK ? '[OK]  ' : secNOK > 0 ? '[NOK] ' : '[---] ') + c.nome + ' (' + secOK + '/' + c.itens.length + (secNOK ? ', ' + secNOK + ' NOK' : '') + ')');
+        for (const item of c.itens) {
+          const d = data[item.id];
+          if (d?.status === 'nok') {
+            linhas.push('   X ' + item.comp + (d.motivo ? ' -> ' + d.motivo : ''));
+            if (d.obs) linhas.push('     Obs: ' + d.obs);
+          }
+        }
+      }
+      linhas.push('');
+      linhas.push('RESUMO ' + td.nome.toUpperCase() + ': ' + totalOK + ' OK | ' + totalNOK + ' NOK | ' + totalTotal + ' total');
+      if (noks.length > 0) {
+        linhas.push('');
+        linhas.push('PENDENCIAS NOK:');
+        noks.forEach((n, i) => {
+          linhas.push((i + 1) + '. [' + n.conjNome + '] ' + n.item.comp);
+          if (n.val.motivo) linhas.push('   Motivo: ' + n.val.motivo);
+          if (n.val.obs) linhas.push('   Obs: ' + n.val.obs);
+        });
+      }
+      linhas.push('');
+    }
   }
 
   linhas.push('====================================================');
   linhas.push('Gerado pelo App Ronda de Manutencao - Agrivalle Brasil');
-  const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: ['1','2'] }]);
+  const periodoStr = dates.map(d => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')).join(' + ');
+  const blocoJSON = gerarBlocoDashboard(dates.map(d => ({ date: d, turnKeys: ['1','2'] })));
   const corpo = linhas.join('\n') + blocoJSON;
-  const assunto = '[RONDA] Relatorio Completo - ' + dataFmt + ' - ' + resp;
+  const assunto = '[RONDA] Relatorio Completo - ' + periodoStr + ' - ' + resp;
+  const arquivoJSON = gerarArquivoJSON(dates.map(d => ({ date: d, turnKeys: ['1','2'] })), 'rondas_agrivalle.json');
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
-  const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: ['1','2'] }], 'rondas_agrivalle.json');
-  mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON);
+  const fotos = dates.flatMap(d => coletarFotos(d, ['1','2']));
+  mostrarModalRelatorio(assunto, corpo, mailto, false, arquivoJSON, fotos);
 }
 
 function enviarEmailCompleto(date, turnKey, autoAbrir) {
@@ -2461,12 +2814,111 @@ function enviarEmailCompleto(date, turnKey, autoAbrir) {
   const blocoJSON = gerarBlocoDashboard([{ date, turnKeys: [turnKey] }]);
   const corpo = linhas.join('\n') + blocoJSON;
   const assunto = '[RONDA CONCLUIDA] ' + td.nome + ' - ' + dataFmt + ' - ' + resp;
-  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
   const arquivoJSON = gerarArquivoJSON([{ date, turnKeys: [turnKey] }], 'rondas_agrivalle.json');
-  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON);
+  const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  const fotos = coletarFotos(date, [turnKey]);
+  mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos);
 }
 
-function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
+
+
+// Envia relatório + fotos diretamente via EmailJS (sem interação do usuário)
+async function enviarComEmailJS(assunto, corpo, fotos, arquivoJSON) {
+  // Carrega SDK se necessário
+  if (typeof emailjs === 'undefined') {
+    await carregarScript('https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js');
+    if (typeof emailjs === 'undefined') throw new Error('EmailJS não carregou');
+  }
+  emailjs.init(EMAILJS_PUBLIC_KEY);
+
+  // Monta HTML das fotos para embutir no corpo do e-mail
+  const fotosHTML = fotos.map((f, i) => {
+    const label = (f.label || ('Foto ' + (i + 1))).replace(/_/g, ' ');
+    return '<div style="margin:10px 0"><p style="margin:0 0 4px;font-size:12px;color:#555;font-family:Arial">' +
+      label + '</p><img src="' + f.dataUrl + '" style="max-width:480px;border-radius:8px;display:block"/></div>';
+  }).join('');
+
+  const corpoHTML = '<pre style="font-family:monospace;font-size:13px;white-space:pre-wrap">' +
+    corpo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>' +
+    (fotosHTML ? '<hr style="margin:20px 0"><h3 style="font-family:Arial;color:#1a2e4a">📸 Fotos da Ronda</h3>' + fotosHTML : '');
+
+  return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_email:     EMAIL_DESTINOS,
+    subject:      assunto,
+    message_html: corpoHTML,
+    message_text: corpo,
+  });
+}
+
+// ===== COMPARTILHAMENTO COM FOTOS =====
+function base64ToFile(dataUrl, filename) {
+  try {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    const u8 = new Uint8Array(bstr.length);
+    for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+    return new File([u8], filename, { type: mime });
+  } catch(e) { return null; }
+}
+
+async function compartilharRelatorioComFotos(assunto, corpo, fotos, mailto) {
+  const files = [];
+  fotos.forEach((f, i) => {
+    const file = base64ToFile(f.dataUrl, 'foto_' + (f.label || i+1) + '_' + (i+1) + '.jpg');
+    if (file) files.push(file);
+  });
+
+  // Tenta Web Share API com arquivos (Android Chrome, iOS Safari 15+)
+  if (files.length > 0 && navigator.share && navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ title: assunto, text: corpo.substring(0, 800), files });
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') return; // usuário cancelou
+    }
+  }
+
+  // Fallback: baixar fotos + abrir email
+  files.forEach((file, i) => {
+    setTimeout(() => {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.download = file.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
+    }, i * 400);
+  });
+  setTimeout(() => { window.location.href = mailto; }, files.length * 400 + 800);
+}
+
+function coletarFotos(date, turnKeys) {
+  const fotos = [];
+  const visto = new Set();
+  for (const turnKey of turnKeys) {
+    const td = CHECKLIST_DATA[turnKey];
+    if (!td) continue;
+    const data = loadData(date);
+    for (const c of td.conjuntos) {
+      for (const item of c.itens) {
+        const d = data[item.id];
+        if (d?.photos?.length) {
+          d.photos.forEach((p, pi) => {
+            const key = p.substring(0, 40);
+            if (visto.has(key)) return;
+            visto.add(key);
+            const status = d.status === 'nok' ? 'NOK' : 'OK';
+            fotos.push({ dataUrl: p, label: status + '_' + item.id.replace(/[^a-zA-Z0-9]/g,'_') + '_' + (pi+1) });
+          });
+        }
+      }
+    }
+  }
+  return fotos;
+}
+
+function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos) {
+  fotos = fotos || [];
   let modal = document.getElementById('modal-relatorio-final');
   if (!modal) {
     modal = document.createElement('div');
@@ -2480,6 +2932,7 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
         <button id="modal-rel-enviar" style="display:block;width:100%;padding:15px;background:#1a5e3a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
           ✉️ Enviar Relatório + Arquivo Dashboard
         </button>
+
         <button onclick="document.getElementById('modal-relatorio-final').style.display='none'" style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;cursor:pointer;">
           Fechar
         </button>
@@ -2496,32 +2949,8 @@ function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON) {
   if (btnEnviar) {
     btnEnviar.onclick = async () => {
       modal.style.display = 'none';
-      // 1. Baixa/salva o arquivo JSON automaticamente
-      if (arquivoJSON) {
-        try {
-          if (window.showSaveFilePicker) {
-            // Android Chrome: deixa escolher pasta
-            const fh = await window.showSaveFilePicker({
-              suggestedName: arquivoJSON.name,
-              types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
-            });
-            const w = await fh.createWritable();
-            await w.write(await arquivoJSON.text());
-            await w.close();
-          } else {
-            // iOS/outros: download direto para pasta padrão
-            const url = URL.createObjectURL(arquivoJSON);
-            const a = document.createElement('a');
-            a.href = url; a.download = arquivoJSON.name;
-            document.body.appendChild(a); a.click();
-            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-          }
-        } catch(e) {
-          if (e.name === 'AbortError') return; // usuário cancelou seleção de pasta
-        }
-      }
-      // 2. Abre email já endereçado com relatório no corpo
-      setTimeout(() => { window.location.href = mailto; }, 600);
+      // Abre e-mail com corpo completo (relatório + bloco dashboard)
+      window.location.href = mailto;
     };
   }
   modal.style.display = 'flex';
@@ -2932,6 +3361,40 @@ function renderQRCodes() {
     <div id="qr-cards-container"></div>`;
   renderQRCards('');
 }
+// ===== SENHA IMPORTAÇÃO PLANILHA =====
+function abrirSenhaImportacao() {
+  const modal = document.getElementById('modal-senha-import');
+  modal.style.display = 'flex';
+  const inp = document.getElementById('input-senha-import');
+  inp.value = '';
+  inp.type = 'password';
+  document.getElementById('btn-olho-senha').textContent = '👁';
+  document.getElementById('erro-senha-import').style.display = 'none';
+  setTimeout(() => inp.focus(), 100);
+}
+function fecharSenhaImportacao() {
+  document.getElementById('modal-senha-import').style.display = 'none';
+}
+function toggleSenhaVisivel() {
+  const inp = document.getElementById('input-senha-import');
+  const btn = document.getElementById('btn-olho-senha');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+function confirmarSenhaImportacao() {
+  const senha = document.getElementById('input-senha-import').value;
+  const erro = document.getElementById('erro-senha-import');
+  if (senha === 'Jiraya561@') {
+    fecharSenhaImportacao();
+    document.getElementById('ronda-xlsx-input').click();
+  } else {
+    erro.style.display = 'block';
+    document.getElementById('input-senha-import').value = '';
+    document.getElementById('input-senha-import').focus();
+    setTimeout(() => { erro.style.display = 'none'; }, 3000);
+  }
+}
+
 // ===== IMPORTAR PLANILHA DE RONDA =====
 function importarPlanilhaRonda(file) {
   if (!file) return;
@@ -3057,8 +3520,8 @@ function importarPlanilhaRonda(file) {
 
 // ===== CLEAR =====
 function clearDayData() {
-  if (!confirm('Limpar todos os dados de hoje (inspeções, nome e seções liberadas)? Esta ação não pode ser desfeita.')) return;
-  const date = todayKey();
+  if (!confirm('Limpar todos os dados da ronda ativa (inspeções, nome e seções liberadas)? Esta ação não pode ser desfeita.')) return;
+  const date = getRondaDate(); // Usa a data da ronda ativa, não obrigatoriamente hoje
   // Dados da ronda
   Store.remove('ronda_' + date);
   // Nome do responsável
@@ -3076,16 +3539,19 @@ function clearDayData() {
       localStorage.removeItem('ronda_fim_' + t + '_' + date);
       localStorage.removeItem('ronda_enviada_' + t + '_' + date);
     });
-    // Seções liberadas por QR hoje
+    // Seções liberadas por QR
     localStorage.removeItem('secoes_lib_' + date);
     ['1','2'].forEach(t => {
       localStorage.removeItem('ronda_acumulado_' + t + '_' + date);
       localStorage.removeItem('ronda_pausada_' + t + '_' + date);
     });
+    // Limpa a data ativa — próxima ronda começa do zero
+    localStorage.removeItem('ronda_data_ativa');
+    Store.remove('ronda_data_ativa');
   } catch(e) {}
   updateHomeStats();
   renderEscalaApp();
-  showToast('🗑️ Dados de hoje apagados');
+  showToast('🗑️ Dados da ronda apagados');
 }
 
 // ===== UTILS =====

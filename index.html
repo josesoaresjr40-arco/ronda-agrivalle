@@ -7,11 +7,11 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- APP_VERSION: 2026-06-20-v7 -->
+<!-- APP_VERSION: 2026-06-23-v8 -->
 <script>
 // Limpeza FORÇADA de todos os SWs e caches antigos — roda UMA vez por sessão
 (function() {
-  var KEY = 'sw_force_cleared_v7';
+  var KEY = 'sw_force_cleared_v8';
   if (sessionStorage.getItem(KEY)) return;
   sessionStorage.setItem(KEY, '1');
   if (!('serviceWorker' in navigator)) return;
@@ -480,6 +480,7 @@ window.addEventListener('DOMContentLoaded', () => {
     <div class="progress-text" id="progress-text">0 de 0 verificados</div>
   </div>
   <!-- Lista apenas para referência visual -->
+
   <div id="checklist-body" style="padding-bottom:200px">
   </div>
   <!-- BOTÃO FIXO: único jeito de acessar um equipamento -->
@@ -995,17 +996,32 @@ const ENVIO_AUTO_URL = '';
 // ===== STORAGE SEGURO (funciona mesmo quando localStorage está bloqueado) =====
 const Store = (() => {
   const mem = {};
-  let _ls = null;
-  function ls() {
-    if (_ls !== null) return _ls;
-    try { localStorage.setItem('__test__','1'); localStorage.removeItem('__test__'); _ls = localStorage; }
-    catch(e) { _ls = null; }
-    return _ls;
+  function lsOk() {
+    try { localStorage.setItem('__t__','1'); localStorage.removeItem('__t__'); return true; }
+    catch(e) { return false; }
   }
   return {
-    get(k)    { try { return (ls() || mem)[k===undefined?0:k] || null; } catch(e) { return mem[k]||null; } },
-    set(k, v) { try { if(ls()) ls().setItem(k,v); else mem[k]=v; } catch(e) { mem[k]=v; } },
-    remove(k) { try { if(ls()) ls().removeItem(k); else delete mem[k]; } catch(e) { delete mem[k]; } }
+    get(k) {
+      // Sempre tenta localStorage primeiro (persiste entre sessões)
+      try {
+        if (lsOk()) {
+          const v = localStorage.getItem(k);
+          if (v !== null && v !== undefined) return v;
+        }
+      } catch(e) {}
+      // Fallback: memória da sessão atual
+      return (mem[k] != null) ? mem[k] : null;
+    },
+    set(k, v) {
+      // Salva SEMPRE na memória (disponível na sessão atual)
+      mem[k] = v;
+      // Tenta salvar também no localStorage (persiste entre sessões)
+      try { if (lsOk()) localStorage.setItem(k, v); } catch(e) {}
+    },
+    remove(k) {
+      delete mem[k];
+      try { if (lsOk()) localStorage.removeItem(k); } catch(e) {}
+    }
   };
 })();
 
@@ -1082,7 +1098,12 @@ function loadData(date) {
 }
 
 function saveData(date, data) {
-  Store.set('ronda_' + date, JSON.stringify(data));
+  const json = JSON.stringify(data);
+  Store.set('ronda_' + date, json);
+  // Confirmação de que salvou
+  const verificado = Store.get('ronda_' + date);
+  if (!verificado) console.warn('[RONDA] FALHA ao salvar dados para', date);
+  else console.log('[RONDA] Dados salvos para', date, '- itens:', Object.keys(data).length);
 }
 
 function getItemData(itemId, date) {
@@ -1103,7 +1124,6 @@ function showScreen(id) {
   const noNav = ['screen-qr-scan'];
   document.getElementById('bottom-nav').style.display = noNav.includes(id) ? 'none' : 'flex';
   if (id === 'screen-home') updateHomeStats();
-  if (id === 'screen-checklist') { try { renderChecklist(currentTurn); } catch(e) {} }
   if (id === 'screen-pendencias') {
     document.getElementById('pend-date').value = todayKey();
     renderPendencias();
@@ -1235,6 +1255,7 @@ function renderChecklist(turn) {
   const body = document.getElementById('checklist-body');
   const date = getRondaDate();
   const dataDay = loadData(date);
+
   body.innerHTML = '';
   let totalItems = 0, checkedItems = 0;
   for (const c of tData.conjuntos) {
@@ -2634,10 +2655,20 @@ function abrirSeletorDataEmail() {
   const dataOntemFmt = new Date(ontem + 'T12:00:00').toLocaleDateString('pt-BR');
   const dataAmanhaFmt = new Date(amanha + 'T12:00:00').toLocaleDateString('pt-BR');
 
+  // Turno Noturno: 18:00–06:00
+  // Se hora atual >= 18h → turno iniciou hoje, termina amanhã
+  // Se hora atual < 18h  → turno iniciou ontem, termina hoje
+  const horaAtual = new Date().getHours();
+  const noturno1 = horaAtual >= 18 ? hoje : ontem;
+  const noturno2 = horaAtual >= 18 ? amanha : hoje;
+  const noturno1Fmt = horaAtual >= 18 ? dataHojeFmt : dataOntemFmt;
+  const noturno2Fmt = horaAtual >= 18 ? dataAmanhaFmt : dataHojeFmt;
+
   // Detecta se há dados em cada data
   const temHoje = Object.values(loadData(hoje)).some(v => v.status);
   const temOntem = Object.values(loadData(ontem)).some(v => v.status);
   const temAmanha = Object.values(loadData(amanha)).some(v => v.status);
+  const temNoturno = Object.values(loadData(noturno1)).some(v => v.status) || Object.values(loadData(noturno2)).some(v => v.status);
 
   let modal = document.getElementById('modal-seletor-data-email');
   if (modal) modal.remove();
@@ -2663,8 +2694,8 @@ function abrirSeletorDataEmail() {
         ${!temOntem ? '<span style="font-size:11px;font-weight:400;color:#9ca3af;"> (sem dados)</span>' : ''}
       </button>
 
-      <button onclick="document.getElementById('modal-seletor-data-email').remove();enviarRelatorioCompleto(['${hoje}','${amanha}'])" style="${btnStyle(temHoje || temAmanha)};background:${(temHoje||temAmanha)?'#fff8f0':'#fff'};border-color:${(temHoje||temAmanha)?'#e8500a':'#e5e7eb'};color:${(temHoje||temAmanha)?'#e8500a':'#9ca3af'};">
-        🌙 Turno Noturno — ${dataHojeFmt} + ${dataAmanhaFmt}
+      <button onclick="document.getElementById('modal-seletor-data-email').remove();enviarRelatorioCompleto(['${noturno1}','${noturno2}'])" style="${btnStyle(temNoturno)};background:${temNoturno?'#fff8f0':'#fff'};border-color:${temNoturno?'#e8500a':'#e5e7eb'};color:${temNoturno?'#e8500a':'#9ca3af'};">
+        🌙 Turno Noturno — ${noturno1Fmt} + ${noturno2Fmt}
         <div style="font-size:11px;font-weight:400;color:#9ca3af;margin-top:2px;">Combina os dois dias em um único e-mail</div>
       </button>
 

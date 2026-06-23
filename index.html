@@ -1045,6 +1045,18 @@ function liberarSecao(conjId) {
 }
 function secaoLiberada(conjId) { return getSecoesLiberadas().includes(conjId); }
 
+function registrarAcessoQR(conjId, viaQR) {
+  try {
+    const key = 'qr_acesso_' + getRondaDate();
+    const obj = JSON.parse(localStorage.getItem(key) || '{}');
+    obj[conjId] = viaQR;
+    localStorage.setItem(key, JSON.stringify(obj));
+  } catch(e) {}
+}
+function getAcessosQR(date) {
+  try { return JSON.parse(localStorage.getItem('qr_acesso_' + date) || '{}'); } catch(e) { return {}; }
+}
+
 function todayKey() {
   // USA data LOCAL (não UTC) para evitar virada de dia às 21h no Brasil (UTC-3)
   const d = new Date();
@@ -1604,6 +1616,7 @@ function skipQR() {
     conjEsperado = null;
     pendingItemId = null;
     liberarSecao(cId);
+    registrarAcessoQR(cId, false);
     showScreen(qrReturnScreen || 'screen-checklist');
     if (pItem) setTimeout(() => openDetail(pItem), 200);
     return;
@@ -1919,6 +1932,7 @@ function abrirSecaoPorNome(nome) {
   conjEsperado = null;
   currentTurn = turnoEncontrado;
   liberarSecao(encontrado.id);
+  registrarAcessoQR(encontrado.id, true);
   if (navigator.vibrate) navigator.vibrate(80);
   renderChecklist(currentTurn);
   showScreen('screen-checklist');
@@ -1945,6 +1959,7 @@ function abrirSecaoConj(conjId) {
     for (const c of td.conjuntos) {
       if (c.id === conjId) {
         liberarSecao(conjId);
+        registrarAcessoQR(conjId, true);
         currentTurn = t;
         if (navigator.vibrate) navigator.vibrate(80);
         renderChecklist(t);
@@ -2471,9 +2486,15 @@ function gerarRowsDashboard(datas) {
         }
       }
       const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+      const qrAcesso = getAcessosQR(date);
+      let viaQR = 0, semQR = 0;
+      for (const c of td.conjuntos) {
+        if (qrAcesso[c.id] === true) viaQR++;
+        else if (qrAcesso[c.id] === false) semQR++;
+      }
       rows.push({ Tipo:'ronda', Data:date, Turno:td.nome, Responsavel:resp,
         Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
-        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct, ViaQR:viaQR, SemQR:semQR });
     }
   }
   return rows;
@@ -2495,14 +2516,15 @@ function gerarBlocoDashboard(datas) {
     const s = String(v === undefined || v === null ? '' : v);
     return s.includes(';') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s;
   };
-  const cab = ['Tipo','Data','Turno','Responsavel','Conjunto','Componente','Status','Motivo','Obs','Inicio','Termino','Duracao','OK','NOK','Total','Pct%'];
+  const cab = ['Tipo','Data','Turno','Responsavel','Conjunto','Componente','Status','Motivo','Obs','Inicio','Termino','Duracao','OK','NOK','Total','Pct%','ViaQR','SemQR'];
   const csvLinhas = [cab.join(';')];
   for (const r of rows) {
     csvLinhas.push([
       r.Tipo, r.Data, r.Turno, r.Responsavel,
       r.Conjunto||'', r.Componente||'', r.Status||'', r.Motivo||'', r.Obs||'',
       r.Inicio||'', r.Termino||'', r.Duracao||'',
-      r.OK!=null?r.OK:'', r.NOK!=null?r.NOK:'', r.Total!=null?r.Total:'', r.Pct!=null?r.Pct:''
+      r.OK!=null?r.OK:'', r.NOK!=null?r.NOK:'', r.Total!=null?r.Total:'', r.Pct!=null?r.Pct:'',
+      r.ViaQR!=null?r.ViaQR:'', r.SemQR!=null?r.SemQR:''
     ].map(csvEscape).join(';'));
   }
   const blocoCSV = '\n\n====================================================\n' +

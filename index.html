@@ -7,11 +7,11 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- APP_VERSION: 2026-06-23-v8 -->
+<!-- APP_VERSION: 2026-06-24-v9 -->
 <script>
 // Limpeza FORÇADA de todos os SWs e caches antigos — roda UMA vez por sessão
 (function() {
-  var KEY = 'sw_force_cleared_v8';
+  var KEY = 'sw_force_cleared_v9';
   if (sessionStorage.getItem(KEY)) return;
   sessionStorage.setItem(KEY, '1');
   if (!('serviceWorker' in navigator)) return;
@@ -2473,7 +2473,7 @@ function gerarRowsDashboard(datas) {
       const inicio = horaRonda('inicio', turnKey, date);
       const fim = horaRonda('fim', turnKey, date);
       const dur = duracaoRonda(turnKey, date);
-      let totalOK = 0, totalNOK = 0, total = 0;
+      let totalOK = 0, totalNOK = 0, totalNT = 0, total = 0;
       for (const c of td.conjuntos) {
         for (const item of c.itens) {
           total++;
@@ -2484,6 +2484,8 @@ function gerarRowsDashboard(datas) {
             rows.push({ Tipo:'item', Data:date, Turno:td.nome, Responsavel:resp,
               Conjunto:c.nome, Componente:item.comp, Status:'NOK',
               Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
+          } else if (s === 'nt') {
+            totalNT++;
           }
         }
       }
@@ -2496,7 +2498,7 @@ function gerarRowsDashboard(datas) {
       }
       rows.push({ Tipo:'ronda', Data:date, Turno:td.nome, Responsavel:resp,
         Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
-        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct, ViaQR:viaQR, SemQR:semQR });
+        OK:totalOK, NOK:totalNOK, NT:totalNT, Total:total, Pct:pct, ViaQR:viaQR, SemQR:semQR });
     }
   }
   return rows;
@@ -2518,14 +2520,14 @@ function gerarBlocoDashboard(datas) {
     const s = String(v === undefined || v === null ? '' : v);
     return s.includes(';') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s;
   };
-  const cab = ['Tipo','Data','Turno','Responsavel','Conjunto','Componente','Status','Motivo','Obs','Inicio','Termino','Duracao','OK','NOK','Total','Pct%','ViaQR','SemQR'];
+  const cab = ['Tipo','Data','Turno','Responsavel','Conjunto','Componente','Status','Motivo','Obs','Inicio','Termino','Duracao','OK','NOK','NT','Total','Pct%','ViaQR','SemQR'];
   const csvLinhas = [cab.join(';')];
   for (const r of rows) {
     csvLinhas.push([
       r.Tipo, r.Data, r.Turno, r.Responsavel,
       r.Conjunto||'', r.Componente||'', r.Status||'', r.Motivo||'', r.Obs||'',
       r.Inicio||'', r.Termino||'', r.Duracao||'',
-      r.OK!=null?r.OK:'', r.NOK!=null?r.NOK:'', r.Total!=null?r.Total:'', r.Pct!=null?r.Pct:'',
+      r.OK!=null?r.OK:'', r.NOK!=null?r.NOK:'', r.NT!=null?r.NT:'', r.Total!=null?r.Total:'', r.Pct!=null?r.Pct:'',
       r.ViaQR!=null?r.ViaQR:'', r.SemQR!=null?r.SemQR:''
     ].map(csvEscape).join(';'));
   }

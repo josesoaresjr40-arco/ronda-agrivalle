@@ -261,12 +261,14 @@ window.addEventListener('DOMContentLoaded', () => {
   .detail-section { margin-bottom: 20px; }
   .detail-section label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; }
 
-  .status-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .status-btn { padding: 16px; border-radius: var(--radius); border: 2px solid; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .status-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .status-btn { padding: 14px 8px; border-radius: var(--radius); border: 2px solid; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-align: center; }
   .status-btn.ok-btn { background: #dcfce7; border-color: var(--success); color: var(--success); }
   .status-btn.ok-btn.selected { background: var(--success); color: white; }
   .status-btn.nok-btn { background: #fee2e2; border-color: var(--danger); color: var(--danger); }
   .status-btn.nok-btn.selected { background: var(--danger); color: white; }
+  .status-btn.nt-btn { background: #f1f5f9; border-color: #94a3b8; color: #64748b; }
+  .status-btn.nt-btn.selected { background: #64748b; color: white; }
 
   textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; background: var(--card); }
   textarea:focus { outline: none; border-color: var(--primary-light); }
@@ -508,6 +510,7 @@ window.addEventListener('DOMContentLoaded', () => {
       <div class="status-buttons">
         <button class="status-btn ok-btn" id="btn-ok" onclick="setStatus('ok')">✅ OK</button>
         <button class="status-btn nok-btn" id="btn-nok" onclick="setStatus('nok')">❌ NOK</button>
+        <button class="status-btn nt-btn" id="btn-nt" onclick="setStatus('nt')">⏸ NT</button>
       </div>
       <div class="nok-motivo-box hidden" id="nok-motivo-box">
         <label>🚨 Motivo da não conformidade <span style="color:#ef4444">*obrigatório</span></label>
@@ -1303,8 +1306,8 @@ function renderChecklist(turn) {
 
 function renderItemRow(item, saved) {
   const st = saved?.status;
-  const icon = st === 'ok' ? '✅' : st === 'nok' ? '❌' : '⭕';
-  const rowBg = st === 'nok' ? 'background:#fff5f5;border-left:3px solid #dc2626;' : st === 'ok' ? 'background:#f0fdf4;border-left:3px solid #16a34a;' : '';
+  const icon = st === 'ok' ? '✅' : st === 'nok' ? '❌' : st === 'nt' ? '⏸️' : '⭕';
+  const rowBg = st === 'nok' ? 'background:#fff5f5;border-left:3px solid #dc2626;' : st === 'ok' ? 'background:#f0fdf4;border-left:3px solid #16a34a;' : st === 'nt' ? 'background:#f8fafc;border-left:3px solid #94a3b8;' : '';
   return `<div class="item-row" id="row-${item.id}" style="${rowBg}cursor:pointer;" onclick="iniciarScanItem('${item.id}')">
     <div style="font-size:26px;flex-shrink:0;line-height:1">${icon}</div>
     <div class="item-info">
@@ -1399,8 +1402,10 @@ function openDetail(itemId) {
 function setDetailStatus(st) {
   const ok = document.getElementById('btn-ok');
   const nok = document.getElementById('btn-nok');
+  const nt = document.getElementById('btn-nt');
   ok.classList.toggle('selected', st === 'ok');
   nok.classList.toggle('selected', st === 'nok');
+  nt.classList.toggle('selected', st === 'nt');
   const motivoBox = document.getElementById('nok-motivo-box');
   if (st === 'nok') {
     motivoBox.classList.remove('hidden');
@@ -2091,7 +2096,7 @@ function montarWbCompleto(date) {
           item.id,
           item.comp,
           item.ver,
-          saved.status === 'ok' ? 'OK' : saved.status === 'nok' ? 'NOK' : 'NV',
+          saved.status === 'ok' ? 'OK' : saved.status === 'nok' ? 'NOK' : saved.status === 'nt' ? 'NT' : 'NV',
           saved.motivo || '',
           saved.obs || '',
           saved.resp || getResp(),
@@ -2262,10 +2267,7 @@ async function verificarEnvioAutomatico() {
   if (typeof XLSX !== 'undefined') {
     const wbC = montarWbCompleto(date);
     const wbP = montarWbPendencias(date);
-    try {
-      await salvarRelatorio(wbC, `Ronda_Manutencao_${date}.xlsx`);
-      if (wbP) await salvarRelatorio(wbP, `Pendencias_${date}.xlsx`);
-    } catch(e) {}
+    // Download automático removido — envio apenas por e-mail ao final da ronda
     if (ENVIO_AUTO_URL) {
       try {
         const payload = {

@@ -373,10 +373,6 @@ window.addEventListener('DOMContentLoaded', () => {
   /* TOAST */
   .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #fd592d; color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; }
   .toast.show { opacity: 1; }
-  /* BANNER EMAIL — tap direto no iOS sem diálogo do sistema */
-  #email-action-banner { display:none; position:fixed; bottom:0; left:0; right:0; z-index:500; background:#1e3a5f; padding:12px 16px 20px; box-shadow:0 -4px 20px rgba(0,0,0,.3); }
-  #email-action-banner a.banner-btn { display:block; background:#16a34a; color:#fff; text-align:center; padding:15px; border-radius:14px; font-size:16px; font-weight:700; text-decoration:none; letter-spacing:.2px; }
-  #email-action-banner button.banner-cancel { display:block; width:100%; background:transparent; border:none; color:rgba(255,255,255,.55); font-size:13px; padding:10px 0 0; cursor:pointer; }
 
   /* NOK motivo */
   .nok-motivo-box { background: #fff5f5; border: 2px solid var(--danger); border-radius: var(--radius); padding: 14px; margin-top: 12px; }
@@ -743,11 +739,6 @@ window.addEventListener('DOMContentLoaded', () => {
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- BANNER DE EMAIL — tap direto abre Mail sem diálogo do iOS -->
-<div id="email-action-banner">
-  <a id="email-banner-link" class="banner-btn" href="#">📧 Toque aqui para enviar o relatório</a>
-  <button class="banner-cancel" onclick="document.getElementById('email-action-banner').style.display='none'">Cancelar</button>
-</div>
 
 <script>
 // ===== DADOS DO CHECKLIST =====
@@ -3002,27 +2993,21 @@ function coletarFotos(date, turnKeys) {
   return fotos;
 }
 
-function mostrarBannerEmail(mailtoUrl, label) {
-  // Exibe o banner com <a href> real — tap do usuário abre Mail direto, sem diálogo do iOS
-  const banner = document.getElementById('email-action-banner');
-  const link   = document.getElementById('email-banner-link');
-  if (!banner || !link) { window.location.href = mailtoUrl; return; }
-  link.href = mailtoUrl;
-  link.textContent = label ? '📧 ' + label : '📧 Toque aqui para enviar o relatório';
-  // Fecha o banner automaticamente após o tap (volta ao app via onvisibilitychange)
-  link.onclick = () => { setTimeout(() => { banner.style.display = 'none'; }, 1500); };
-  banner.style.display = 'block';
-  // Rola ao topo para o usuário ver o banner fixo no fundo
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos) {
-  mostrarBannerEmail(mailto, 'Enviar Relatório por Email');
+  abrirMailto(mailto);
 }
 
 function abrirMailto(url) {
-  // Mantido para compatibilidade com fluxos de botão direto
-  mostrarBannerEmail(url);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { document.body.removeChild(a); } catch(e){} }, 300);
+  } catch(e) {
+    window.location.href = url;
+  }
 }
 
 // ===== EMAIL NOK =====

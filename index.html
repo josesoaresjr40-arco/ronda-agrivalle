@@ -2964,7 +2964,7 @@ async function compartilharRelatorioComFotos(assunto, corpo, fotos, mailto) {
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 600);
     }, i * 400);
   });
-  setTimeout(() => { window.location.href = mailto; }, files.length * 400 + 800);
+  setTimeout(() => { abrirMailto(mailto); }, files.length * 400 + 800);
 }
 
 function coletarFotos(date, turnKeys) {
@@ -2993,42 +2993,22 @@ function coletarFotos(date, turnKeys) {
 }
 
 function mostrarModalRelatorio(assunto, corpo, mailto, autoAbrir, arquivoJSON, fotos) {
-  fotos = fotos || [];
-  let modal = document.getElementById('modal-relatorio-final');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'modal-relatorio-final';
-    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:flex-end;justify-content:center;';
-    modal.innerHTML = `
-      <div style="background:white;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;box-sizing:border-box;">
-        <div style="font-size:22px;text-align:center;margin-bottom:8px;">🎉</div>
-        <div id="modal-rel-titulo" style="font-size:17px;font-weight:700;color:#1a2e4a;text-align:center;margin-bottom:4px;"></div>
-        <div id="modal-rel-sub" style="font-size:13px;color:#5d7261;text-align:center;margin-bottom:20px;"></div>
-        <button id="modal-rel-enviar" style="display:block;width:100%;padding:15px;background:#1a5e3a;color:white;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;">
-          ✉️ Enviar Relatório + Arquivo Dashboard
-        </button>
+  // Abre o Mail diretamente, sem modal intermediário
+  abrirMailto(mailto);
+}
 
-        <button onclick="document.getElementById('modal-relatorio-final').style.display='none'" style="display:block;width:100%;padding:13px;background:#f3f4f6;color:#374151;border:none;border-radius:12px;font-size:15px;cursor:pointer;">
-          Fechar
-        </button>
-      </div>`;
-    document.body.appendChild(modal);
+function abrirMailto(url) {
+  // Usa <a> com click para reduzir o diálogo do iOS
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { try { document.body.removeChild(a); } catch(e){} }, 300);
+  } catch(e) {
+    window.location.href = url;
   }
-  const titulo = document.getElementById('modal-rel-titulo');
-  const sub = document.getElementById('modal-rel-sub');
-  const btnEnviar = document.getElementById('modal-rel-enviar');
-  if (titulo) titulo.textContent = assunto.replace('[RONDA CONCLUIDA] ','').replace('[RONDA] ','');
-  if (sub) sub.textContent = arquivoJSON
-    ? 'Envia o relatório com o arquivo rondas_agrivalle.json anexado'
-    : 'Toque para abrir o e-mail com o relatório completo';
-  if (btnEnviar) {
-    btnEnviar.onclick = async () => {
-      modal.style.display = 'none';
-      // Abre e-mail com corpo completo (relatório + bloco dashboard)
-      window.location.href = mailto;
-    };
-  }
-  modal.style.display = 'flex';
 }
 
 // ===== EMAIL NOK =====
@@ -3066,7 +3046,7 @@ function enviarEmailNOK() {
   corpo += '\nGerado pelo App de Ronda de Manutenção - Agrivalle Brasil';
   const assunto = '[NOK] Pendências Ronda Manutenção - ' + dataFmt + ' - ' + resp;
   const mailto = 'mailto:' + EMAIL_DESTINOS + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
-  window.location.href = mailto;
+  abrirMailto(mailto);
   showToast('Abrindo app de e-mail...');
 }
 

@@ -1076,6 +1076,7 @@ function showStorageAlert() {
 let currentTurn = '1';
 let currentItemId = null;
 let qrStream = null;
+let qrAnimFrame = null; // declarado explicitamente para evitar ReferenceError
 
 // Tela de retorno após cancelar QR
 let qrReturnScreen = 'screen-checklist';
@@ -1753,26 +1754,16 @@ async function lerQRFrame() {
         if (codes.length > 0) { pararCamera(); processarQR(codes[0].rawValue); return; }
       } catch(e) {}
     }
-    // Método 2: jsQR via canvas
+    // Método 2: jsQR — apenas crop central 512×512 (frame completo bloqueava CPU em celulares fracos)
     if (typeof jsQR !== 'undefined') {
-      const canvas = document.getElementById('qr-canvas');
       const vw = video.videoWidth, vh = video.videoHeight;
-      canvas.width = vw; canvas.height = vh;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, vw, vh);
-      // Tentativa A: frame completo
-      let imgData = ctx.getImageData(0, 0, vw, vh);
-      let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
-      // Tentativa B: crop central 65% → 512px (reutiliza canvas fixo para não vazar memória)
-      if (!code) {
-        const tmp = getQRTmpCanvas();
-        const cs = Math.min(vw, vh) * 0.65;
-        const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
-        const tCtx = tmp.getContext('2d');
-        tCtx.drawImage(canvas, cx, cy, cs, cs, 0, 0, 512, 512);
-        imgData = tCtx.getImageData(0, 0, 512, 512);
-        code = jsQR(imgData.data, 512, 512, { inversionAttempts: 'attemptBoth' });
-      }
+      const tmp = getQRTmpCanvas();
+      const cs = Math.min(vw, vh) * 0.65;
+      const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
+      const tCtx = tmp.getContext('2d');
+      tCtx.drawImage(video, cx, cy, cs, cs, 0, 0, 512, 512);
+      const imgData = tCtx.getImageData(0, 0, 512, 512);
+      const code = jsQR(imgData.data, 512, 512, { inversionAttempts: 'attemptBoth' });
       if (code) { pararCamera(); processarQR(code.data); return; }
     }
   }

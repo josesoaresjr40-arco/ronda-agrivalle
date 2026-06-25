@@ -1679,6 +1679,15 @@ function skipQR() {
 // Detector de QR nativo (Chrome Android 83+)
 let _barcodeDetector = null;
 let _lastScanTime = 0;
+// Canvas reutilizável — criado uma única vez para evitar vazamento de memória no loop
+let _qrTmpCanvas = null;
+function getQRTmpCanvas() {
+  if (!_qrTmpCanvas) {
+    _qrTmpCanvas = document.createElement('canvas');
+    _qrTmpCanvas.width = 512; _qrTmpCanvas.height = 512;
+  }
+  return _qrTmpCanvas;
+}
 (async () => {
   try {
     if ('BarcodeDetector' in window) {
@@ -1690,6 +1699,8 @@ let _lastScanTime = 0;
 })();
 
 async function abrirCamera() {
+  // Garante que qualquer stream/loop anterior está parado antes de abrir novo
+  pararCamera();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-qr-scan').classList.add('active');
   document.getElementById('bottom-nav').style.display = 'none';
@@ -1730,7 +1741,8 @@ async function lerQRFrame() {
   if (!qrStream || !video) return;
 
   const now = Date.now();
-  if (now - _lastScanTime < 200) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
+  // 350ms entre frames: reduz carga de CPU em dispositivos de baixo desempenho (ex: Samsung A31)
+  if (now - _lastScanTime < 350) { qrAnimFrame = requestAnimationFrame(lerQRFrame); return; }
   _lastScanTime = now;
 
   if (video.readyState >= 2 && video.videoWidth > 0) {
@@ -1751,9 +1763,9 @@ async function lerQRFrame() {
       // Tentativa A: frame completo
       let imgData = ctx.getImageData(0, 0, vw, vh);
       let code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
-      // Tentativa B: crop central 65% → 512px
+      // Tentativa B: crop central 65% → 512px (reutiliza canvas fixo para não vazar memória)
       if (!code) {
-        const tmp = document.createElement('canvas'); tmp.width = 512; tmp.height = 512;
+        const tmp = getQRTmpCanvas();
         const cs = Math.min(vw, vh) * 0.65;
         const cx = (vw - cs) / 2, cy = (vh - cs) / 2;
         const tCtx = tmp.getContext('2d');

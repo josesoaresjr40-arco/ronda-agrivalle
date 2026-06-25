@@ -993,8 +993,8 @@ const EMAILJS_PUBLIC_KEY   = '';   // ex: 'user_xxxxxxxxxxxxxxxxxxx'
 const EMAILJS_SERVICE_ID   = '';   // ex: 'service_xxxxxxx'
 const EMAILJS_TEMPLATE_ID  = '';   // ex: 'template_xxxxxxx'
 // ================================================================
-// URL do Web App (Google Apps Script) para envio automático de e-mails com anexos.
-// Instruções no arquivo "Configurar Envio Automatico.txt" da pasta Ronda.
+// URL do Apps Script publicado como Web App (servidor_rondas.gs)
+// Cole aqui a URL gerada após publicar o script no Google Apps Script
 const ENVIO_AUTO_URL = '';
 
 // ===== STORAGE SEGURO (funciona mesmo quando localStorage está bloqueado) =====
@@ -1004,30 +1004,73 @@ const Store = (() => {
     try { localStorage.setItem('__t__','1'); localStorage.removeItem('__t__'); return true; }
     catch(e) { return false; }
   }
+  // Remove rondas com mais de 8 dias para liberar espaço
+  function limparRondasAntigas() {
+    try {
+      const limite = new Date(); limite.setDate(limite.getDate() - 8);
+      const limKey = limite.toISOString().slice(0,10);
+      const paraRemover = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        // Chaves de dados da ronda: ronda_YYYY-MM-DD, ronda_fim_*, secoes_lib_*, qr_acesso_*
+        const m = k.match(/^(?:ronda_|ronda_fim_\d_|secoes_lib_|qr_acesso_)(\d{4}-\d{2}-\d{2})/);
+        if (m && m[1] < limKey) paraRemover.push(k);
+      }
+      paraRemover.forEach(k => localStorage.removeItem(k));
+      return paraRemover.length;
+    } catch(e) { return 0; }
+  }
   return {
     get(k) {
-      // Sempre tenta localStorage primeiro (persiste entre sessões)
       try {
         if (lsOk()) {
           const v = localStorage.getItem(k);
           if (v !== null && v !== undefined) return v;
         }
       } catch(e) {}
-      // Fallback: memória da sessão atual
       return (mem[k] != null) ? mem[k] : null;
     },
     set(k, v) {
-      // Salva SEMPRE na memória (disponível na sessão atual)
       mem[k] = v;
-      // Tenta salvar também no localStorage (persiste entre sessões)
-      try { if (lsOk()) localStorage.setItem(k, v); } catch(e) {}
+      try {
+        if (!lsOk()) return;
+        localStorage.setItem(k, v);
+      } catch(e) {
+        if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
+          // Tenta liberar espaço removendo rondas antigas e repetir
+          const removidas = limparRondasAntigas();
+          try {
+            localStorage.setItem(k, v);
+            if (removidas > 0) console.info('[Store] Limpou ' + removidas + ' chaves antigas para liberar espaço');
+          } catch(e2) {
+            // Ainda sem espaço — dado fica só em memória, avisa o usuário
+            showStorageAlert();
+          }
+        }
+      }
     },
     remove(k) {
       delete mem[k];
       try { if (lsOk()) localStorage.removeItem(k); } catch(e) {}
-    }
+    },
+    limparAntigos: limparRondasAntigas
   };
 })();
+
+let _storageAlertShown = false;
+function showStorageAlert() {
+  if (_storageAlertShown) return;
+  _storageAlertShown = true;
+  // Banner permanente no topo da tela
+  const div = document.createElement('div');
+  div.id = 'storage-alert-banner';
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#dc2626;color:#fff;text-align:center;padding:12px 16px;font-size:14px;font-weight:700;';
+  div.innerHTML = '⚠️ Armazenamento cheio! Dados desta sessão NÃO serão salvos após fechar o app. <button onclick="document.getElementById(\'storage-alert-banner\').remove();_storageAlertShown=false;" style="margin-left:12px;background:rgba(255,255,255,.25);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;">✕</button>';
+  document.body.insertBefore(div, document.body.firstChild);
+  // Toast adicional
+  if (typeof showToast === 'function') showToast('⚠️ ARMAZENAMENTO CHEIO — use Exportar antes de fechar!');
+}
 
 // ===== ESTADO =====
 let currentTurn = '1';
@@ -1116,10 +1159,12 @@ function loadData(date) {
 function saveData(date, data) {
   const json = JSON.stringify(data);
   Store.set('ronda_' + date, json);
-  // Confirmação de que salvou
-  const verificado = Store.get('ronda_' + date);
-  if (!verificado) console.warn('[RONDA] FALHA ao salvar dados para', date);
-  else console.log('[RONDA] Dados salvos para', date, '- itens:', Object.keys(data).length);
+  // Verifica diretamente no localStorage (não na memória) para detectar falha real de persistência
+  try {
+    const verificado = localStorage.getItem('ronda_' + date);
+    if (!verificado) console.warn('[RONDA] FALHA PERSISTÊNCIA localStorage para', date, '— dado só em memória');
+    else console.log('[RONDA] OK localStorage para', date, '— itens:', Object.keys(data).length);
+  } catch(e) {}
 }
 
 function getItemData(itemId, date) {
@@ -2265,27 +2310,51 @@ async function verificarEnvioAutomatico() {
   const durTxt = duracaoRonda(currentTurn, date);
   showToast('🎉 Ronda do turno concluída' + (durTxt ? ' em ⏱ ' + durTxt : '') + '!');
   localStorage.setItem(flag, '1');
-  if (typeof XLSX !== 'undefined') {
-    const wbC = montarWbCompleto(date);
-    const wbP = montarWbPendencias(date);
-    // Download automático removido — envio apenas por e-mail ao final da ronda
-    if (ENVIO_AUTO_URL) {
-      try {
-        const payload = {
-          tipo: 'ronda_completa', data: date, turno: td.nome,
-          resp: getResp() || 'Não informado', destinos: EMAIL_DESTINOS,
-          duracao: durTxt, inicio: horaRonda('inicio', currentTurn, date), fim: horaRonda('fim', currentTurn, date),
-          completo: XLSX.write(wbC, { bookType: 'xlsx', type: 'base64' }),
-          pendencias: wbP ? XLSX.write(wbP, { bookType: 'xlsx', type: 'base64' }) : null
-        };
-        await fetch(ENVIO_AUTO_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-        showToast('📧 Relatório enviado automaticamente!');
-        return;
-      } catch (e) { showToast('⚠️ Falha no envio automático — use Exportar manualmente'); }
+  // Envia JSON ao servidor (Apps Script) se configurado
+  if (ENVIO_AUTO_URL) {
+    try {
+      const rows = montarRowsDashboardRonda(date, currentTurn);
+      fetch(ENVIO_AUTO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rows)
+      })
+        .then(() => showToast('☁️ Dados salvos no servidor!'))
+        .catch(err => console.warn('Envio servidor:', err));
+    } catch(e) { console.warn('montarRowsDashboardRonda:', e); }
+  }
+  // Sempre abre o email também (registro e arquivo)
+  enviarEmailCompleto(date, currentTurn, true);
+}
+
+// Monta os rows do dashboard para uma ronda específica (date + turnKey)
+function montarRowsDashboardRonda(date, turnKey) {
+  const td = CHECKLIST_DATA[turnKey];
+  const data = loadData(date);
+  const resp = (() => { try { return localStorage.getItem('resp_nome') || 'N/I'; } catch(e) { return 'N/I'; } })();
+  const inicio = horaRonda('inicio', turnKey, date);
+  const fim = horaRonda('fim', turnKey, date);
+  const dur = duracaoRonda(turnKey, date);
+  const rows = [];
+  let totalOK = 0, totalNOK = 0, total = 0;
+  for (const c of td.conjuntos) {
+    for (const item of c.itens) {
+      total++;
+      const s = data[item.id]?.status;
+      if (s === 'ok') totalOK++;
+      else if (s === 'nok') {
+        totalNOK++;
+        rows.push({ Tipo:'item', Data:date, Turno:td.nome, Responsavel:resp,
+          Conjunto:c.nome, Componente:item.comp, Status:'NOK',
+          Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
+      }
     }
   }
-  // Sem ENVIO_AUTO_URL → prepara o banner para o usuário tocar e abrir o Mail diretamente
-  enviarEmailCompleto(date, currentTurn, true);
+  const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+  rows.push({ Tipo:'ronda', Data:date, Turno:td.nome, Responsavel:resp,
+    Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
+    OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+  return rows;
 }
 
 async function copiarJsonParaClipboard() {

@@ -742,7 +742,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <script>
 // ===== DADOS DO CHECKLIST =====
-const CHECKLIST_DATA = {
+let CHECKLIST_DATA = {
   "1": {
     nome: "1º Turno",
     conjuntos: [
@@ -1071,6 +1071,19 @@ function showStorageAlert() {
   // Toast adicional
   if (typeof showToast === 'function') showToast('⚠️ ARMAZENAMENTO CHEIO — use Exportar antes de fechar!');
 }
+
+// ===== CARREGAR CHECKLIST CUSTOMIZADO DO STORAGE =====
+(function() {
+  try {
+    const custom = localStorage.getItem('checklist_custom');
+    if (custom) {
+      const parsed = JSON.parse(custom);
+      // Mesclar: usar estrutura customizada mas manter nomes dos turnos
+      if (parsed['1']) CHECKLIST_DATA['1'].conjuntos = parsed['1'];
+      if (parsed['2']) CHECKLIST_DATA['2'].conjuntos = parsed['2'];
+    }
+  } catch(e) { console.warn('Erro ao carregar checklist customizado:', e); }
+})();
 
 // ===== ESTADO =====
 let currentTurn = '1';
@@ -2339,7 +2352,7 @@ function montarRowsDashboardRonda(date, turnKey) {
   const fim = horaRonda('fim', turnKey, date);
   const dur = duracaoRonda(turnKey, date);
   const rows = [];
-  let totalOK = 0, totalNOK = 0, total = 0;
+  let totalOK = 0, totalNOK = 0, totalNT = 0, total = 0;
   for (const c of td.conjuntos) {
     for (const item of c.itens) {
       total++;
@@ -2350,13 +2363,14 @@ function montarRowsDashboardRonda(date, turnKey) {
         rows.push({ Tipo:'item', Data:date, Turno:td.nome, Responsavel:resp,
           Conjunto:c.nome, Componente:item.comp, Status:'NOK',
           Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
-      }
+      } else if (s === 'nt') totalNT++;
     }
   }
-  const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+  // Pct = itens inspecionados (OK+NOK+NT) / total
+  const pct = total > 0 ? Math.round((totalOK + totalNOK + totalNT) / total * 100) : 0;
   rows.push({ Tipo:'ronda', Data:date, Turno:td.nome, Responsavel:resp,
     Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
-    OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+    OK:totalOK, NOK:totalNOK, NT:totalNT, Total:total, Pct:pct });
   return rows;
 }
 
@@ -2376,7 +2390,7 @@ async function copiarJsonParaClipboard() {
       const inicio = horaRonda('inicio', turnKey, dateKey);
       const fim = horaRonda('fim', turnKey, dateKey);
       const dur = duracaoRonda(turnKey, dateKey);
-      let totalOK = 0, totalNOK = 0, total = 0;
+      let totalOK = 0, totalNOK = 0, totalNT = 0, total = 0;
       for (const c of td.conjuntos) {
         for (const item of c.itens) {
           total++;
@@ -2387,13 +2401,13 @@ async function copiarJsonParaClipboard() {
             rows.push({ Tipo:'item', Data:dateKey, Turno:td.nome, Responsavel:resp,
               Conjunto:c.nome, Componente:item.comp, Status:'NOK',
               Motivo:data[item.id]?.motivo||'', Obs:data[item.id]?.obs||'' });
-          }
+          } else if (s === 'nt') totalNT++;
         }
       }
-      const pct = total > 0 ? Math.round((totalOK+totalNOK)/total*100) : 0;
+      const pct = total > 0 ? Math.round((totalOK+totalNOK+totalNT)/total*100) : 0;
       rows.push({ Tipo:'ronda', Data:dateKey, Turno:td.nome, Responsavel:resp,
         Inicio:inicio||'', Termino:fim||'', Duracao:dur||'',
-        OK:totalOK, NOK:totalNOK, Total:total, Pct:pct });
+        OK:totalOK, NOK:totalNOK, NT:totalNT, Total:total, Pct:pct });
     }
   }
   if (!rows.length) { showToast('⚠️ Nenhum dado de ronda encontrado'); return; }
@@ -2440,7 +2454,7 @@ async function exportarParaDashboard() {
       const inicio = horaRonda('inicio', turnKey, dateKey);
       const fim = horaRonda('fim', turnKey, dateKey);
       const dur = duracaoRonda(turnKey, dateKey);
-      let totalOK = 0, totalNOK = 0, total = 0;
+      let totalOK = 0, totalNOK = 0, totalNT = 0, total = 0;
 
       for (const c of td.conjuntos) {
         for (const item of c.itens) {
@@ -2458,17 +2472,17 @@ async function exportarParaDashboard() {
               Motivo: data[item.id]?.motivo || '',
               Obs: data[item.id]?.obs || ''
             });
-          }
+          } else if (s === 'nt') totalNT++;
         }
       }
-      const pct = total > 0 ? Math.round((totalOK + totalNOK) / total * 100) : 0;
+      const pct = total > 0 ? Math.round((totalOK + totalNOK + totalNT) / total * 100) : 0;
       // Linha de ronda (resumo)
       rows.push({
         Tipo: 'ronda', Data: dateKey,
         Turno: td.nome, Responsavel: resp,
         Inicio: inicio || '', Termino: fim || '',
         Duracao: dur || '',
-        OK: totalOK, NOK: totalNOK,
+        OK: totalOK, NOK: totalNOK, NT: totalNT,
         Total: total, Pct: pct
       });
     }
@@ -3228,13 +3242,13 @@ function renderEscalaApp() {
   const date = todayKey(), data = loadData(date);
   let html = '';
   for (const [turn, td] of Object.entries(CHECKLIST_DATA)) {
-    let tot = 0, ok = 0, nok = 0;
+    let tot = 0, ok = 0, nok = 0, nt = 0;
     for (const c of td.conjuntos) for (const i of c.itens) {
       tot++;
       const st = data[i.id]?.status;
-      if (st === 'ok') ok++; else if (st === 'nok') nok++;
+      if (st === 'ok') ok++; else if (st === 'nok') nok++; else if (st === 'nt') nt++;
     }
-    const feitos = ok + nok, pct = tot ? Math.round(feitos / tot * 100) : 0;
+    const feitos = ok + nok + nt, pct = tot ? Math.round(feitos / tot * 100) : 0;
     const dur = duracaoRonda(turn, date);
     const status = pct === 100 ? '✅ Concluída' : feitos > 0 ? '⏳ Em andamento' : '⚪ Não iniciada';
     html += `<div class="acomp-card" onclick="currentTurn='${turn}';renderChecklist('${turn}');showScreen('screen-checklist')" style="cursor:pointer">
@@ -3242,7 +3256,7 @@ function renderEscalaApp() {
         <b style="font-size:15px">${td.nome}</b><span style="font-size:12px;font-weight:600">${status}</span>
       </div>
       <div class="acomp-bar"><div class="acomp-fill" style="width:${pct}%"></div></div>
-      <div style="font-size:12px;color:var(--text-muted)">${feitos} de ${tot} itens (${pct}%) · ✅ ${ok} OK · ❌ ${nok} NOK${dur ? ' · ⏱ ' + dur : ''}</div>
+      <div style="font-size:12px;color:var(--text-muted)">${feitos} de ${tot} itens (${pct}%) · ✅ ${ok} OK · ❌ ${nok} NOK${nt > 0 ? ' · ⏸️ '+nt+' NT' : ''}${dur ? ' · ⏱ ' + dur : ''}</div>
     </div>`;
   }
   document.getElementById('escala-acomp').innerHTML = html;
@@ -3545,97 +3559,154 @@ function importarPlanilhaRonda(file) {
       // Identificar índices das colunas pelo cabeçalho
       const header = rows[0].map(h => String(h).trim().toUpperCase());
       const col = {
+        turno: header.findIndex(h => h === 'TURNO'),
+        conj:  header.findIndex(h => h.includes('CONJUNTO')),
         id:    header.findIndex(h => h === 'ID'),
+        comp:  header.findIndex(h => h.includes('EQUIPAMENTO') || h.includes('COMPONENTE')),
+        ver:   header.findIndex(h => h.includes('TAREFA') || h.includes('VERIFICAR')),
+        freq:  header.findIndex(h => h.includes('FREQU')),
         st:    header.findIndex(h => h === 'STATUS'),
         mot:   header.findIndex(h => h.includes('MOTIVO')),
         obs:   header.findIndex(h => h.includes('OBSERVA')),
         resp:  header.findIndex(h => h.includes('RESPONS')),
         data:  header.findIndex(h => h === 'DATA'),
-        ini:   header.findIndex(h => h.includes('INÍCIO') || h.includes('INICIO') || h.includes('INÍCIO')),
+        ini:   header.findIndex(h => h.includes('INÍCIO') || h.includes('INICIO')),
         fim:   header.findIndex(h => h.includes('FIM')),
-        turno: header.findIndex(h => h === 'TURNO'),
       };
 
-      if (col.id < 0 || col.st < 0) {
-        showToast('❌ Formato inválido — coluna ID ou Status não encontrada');
+      if (col.id < 0) {
+        showToast('❌ Formato inválido — coluna ID não encontrada');
         if (statusEl) statusEl.textContent = '❌ Formato inválido';
         return;
       }
 
-      let importados = 0, erros = 0;
-      const hoje = todayKey();
-      // Agrupar por data
+      // ===== 1. IMPORTAR ESTRUTURA (conjuntos e itens) =====
+      // Sempre que a planilha tiver colunas de estrutura, atualiza o checklist
+      let estruturaAtualizada = false;
+      if (col.turno >= 0 && col.conj >= 0 && col.comp >= 0) {
+        const turnos = { '1': [], '2': [] };
+        const conjMap = { '1': {}, '2': {} }; // conjNome -> { id, icon, nome, itens[] }
+        let conjCount = { '1': 0, '2': 0 };
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const itemId = String(row[col.id] || '').trim();
+          if (!itemId) continue;
+
+          const turnoRaw = String(row[col.turno] || '').trim();
+          const t = turnoRaw.toUpperCase().includes('NOITE') || turnoRaw.includes('2') ? '2' : '1';
+          const conjRaw = String(row[col.conj] || '').trim();
+          if (!conjRaw) continue;
+
+          if (!conjMap[t][conjRaw]) {
+            conjCount[t]++;
+            // Extrair emoji do início do nome do conjunto
+            const emojiMatch = conjRaw.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u);
+            const icon = emojiMatch ? emojiMatch[0].trim() : '🔧';
+            const nome = conjRaw.replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '').trim();
+            const conjId = `C${conjCount[t]}`;
+            conjMap[t][conjRaw] = { id: conjId, icon, nome, itens: [] };
+            turnos[t].push(conjMap[t][conjRaw]);
+          }
+
+          const comp = String(row[col.comp] || '').trim();
+          const ver  = col.ver  >= 0 ? String(row[col.ver]  || '').trim() : '';
+          const freq = col.freq >= 0 ? String(row[col.freq] || '').trim().toUpperCase() : '';
+          const item = { id: itemId, comp, ver };
+          if (freq && freq !== 'DIÁRIO' && freq !== 'DIARIO') item.tag = freq;
+          conjMap[t][conjRaw].itens.push(item);
+        }
+
+        // Salvar estrutura customizada no storage e atualizar em memória
+        const customData = {};
+        if (turnos['1'].length) customData['1'] = turnos['1'];
+        if (turnos['2'].length) customData['2'] = turnos['2'];
+        if (Object.keys(customData).length) {
+          localStorage.setItem('checklist_custom', JSON.stringify(customData));
+          if (customData['1']) CHECKLIST_DATA['1'].conjuntos = customData['1'];
+          if (customData['2']) CHECKLIST_DATA['2'].conjuntos = customData['2'];
+          estruturaAtualizada = true;
+        }
+      }
+
+      // ===== 2. IMPORTAR RESULTADOS (status OK/NOK) se existirem =====
+      let importados = 0;
       const porData = {};
+      const hoje = getRondaDate();
 
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        const itemId = String(row[col.id] || '').trim();
-        if (!itemId) continue;
+      if (col.st >= 0) {
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const itemId = String(row[col.id] || '').trim();
+          if (!itemId) continue;
 
-        // Normalizar status
-        const stRaw = String(row[col.st] || '').trim().toUpperCase();
-        const status = stRaw === 'OK' ? 'ok' : stRaw === 'NOK' ? 'nok' : stRaw === 'PENDENTE' ? 'pendente' : null;
-        if (!status) continue; // pular linhas sem status preenchido
+          const stRaw = String(row[col.st] || '').trim().toUpperCase();
+          const status = stRaw === 'OK' ? 'ok' : stRaw === 'NOK' ? 'nok' : stRaw === 'PENDENTE' ? 'pendente' : null;
+          if (!status) continue;
 
-        // Data: aceita dd/mm/aaaa, yyyy-mm-dd, ou Date object do xlsx
-        let dataKey = hoje;
-        if (col.data >= 0 && row[col.data]) {
-          const rawDate = row[col.data];
-          if (rawDate instanceof Date) {
-            const d = rawDate;
-            dataKey = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-          } else {
-            const ds = String(rawDate).trim();
-            if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) {
-              dataKey = ds;
-            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(ds)) {
-              const [dd, mm, aaaa] = ds.split('/');
-              dataKey = `${aaaa}-${mm}-${dd}`;
+          let dataKey = hoje;
+          if (col.data >= 0 && row[col.data]) {
+            const rawDate = row[col.data];
+            if (rawDate instanceof Date) {
+              dataKey = rawDate.getFullYear() + '-' + String(rawDate.getMonth()+1).padStart(2,'0') + '-' + String(rawDate.getDate()).padStart(2,'0');
+            } else {
+              const ds = String(rawDate).trim();
+              if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) dataKey = ds;
+              else if (/^\d{2}\/\d{2}\/\d{4}$/.test(ds)) {
+                const [dd, mm, aaaa] = ds.split('/');
+                dataKey = `${aaaa}-${mm}-${dd}`;
+              }
             }
           }
+
+          if (!porData[dataKey]) porData[dataKey] = {};
+          porData[dataKey][itemId] = {
+            status,
+            motivo: col.mot  >= 0 ? String(row[col.mot]  || '').trim() : '',
+            obs:    col.obs  >= 0 ? String(row[col.obs]  || '').trim() : '',
+            resp:   col.resp >= 0 ? String(row[col.resp] || '').trim() : getResp(),
+            turno:  col.turno >= 0 ? String(row[col.turno] || '').trim() : '',
+            inicio: col.ini  >= 0 ? String(row[col.ini]  || '').trim() : '',
+            fim:    col.fim  >= 0 ? String(row[col.fim]  || '').trim() : '',
+            photos: [],
+          };
+          importados++;
         }
 
-        if (!porData[dataKey]) porData[dataKey] = {};
-        porData[dataKey][itemId] = {
-          status,
-          motivo: col.mot  >= 0 ? String(row[col.mot]  || '').trim() : '',
-          obs:    col.obs  >= 0 ? String(row[col.obs]  || '').trim() : '',
-          resp:   col.resp >= 0 ? String(row[col.resp] || '').trim() : getResp(),
-          turno:  col.turno >= 0 ? String(row[col.turno] || '').trim() : '',
-          inicio: col.ini  >= 0 ? String(row[col.ini]  || '').trim() : '',
-          fim:    col.fim  >= 0 ? String(row[col.fim]  || '').trim() : '',
-          photos: [],
-        };
-        importados++;
-      }
-
-      // Gravar no storage por data, mesclando com dados existentes
-      for (const [dataKey, novos] of Object.entries(porData)) {
-        const existente = loadData(dataKey);
-        const merged = { ...existente };
-        for (const [id, val] of Object.entries(novos)) {
-          merged[id] = { ...(existente[id] || {}), ...val };
+        for (const [dataKey, novos] of Object.entries(porData)) {
+          const existente = loadData(dataKey);
+          const merged = { ...existente };
+          for (const [id, val] of Object.entries(novos)) {
+            merged[id] = { ...(existente[id] || {}), ...val };
+          }
+          saveData(dataKey, merged);
         }
-        saveData(dataKey, merged);
+
+        const respInformado = Object.values(porData).flatMap(d => Object.values(d)).map(v => v.resp).find(r => r);
+        if (respInformado && respInformado !== getResp()) {
+          Store.set('resp_nome', respInformado);
+          try { document.getElementById('resp-input').value = respInformado; } catch(e){}
+          try { document.getElementById('resp-input-escala').value = respInformado; } catch(e){}
+        }
       }
 
-      // Atualizar responsável se informado em alguma linha
-      const respInformado = Object.values(porData).flatMap(d => Object.values(d)).map(v => v.resp).find(r => r);
-      if (respInformado && respInformado !== getResp()) {
-        Store.set('resp_nome', respInformado);
-        try { document.getElementById('resp-input').value = respInformado; } catch(e){}
-        try { document.getElementById('resp-input-escala').value = respInformado; } catch(e){}
+      // ===== 3. FEEDBACK E ATUALIZAÇÃO DE TELA =====
+      let msg = '';
+      if (estruturaAtualizada && importados > 0) {
+        msg = `✅ Checklist atualizado + ${importados} resultado(s) importado(s)`;
+      } else if (estruturaAtualizada) {
+        const t1 = CHECKLIST_DATA['1'].conjuntos.reduce((s,c) => s + c.itens.length, 0);
+        const t2 = CHECKLIST_DATA['2'].conjuntos.reduce((s,c) => s + c.itens.length, 0);
+        msg = `✅ Checklist atualizado: ${t1} itens T1 · ${t2} itens T2`;
+      } else if (importados > 0) {
+        msg = `✅ ${importados} resultado(s) importado(s)`;
+      } else {
+        msg = '⚠️ Nenhum dado importado — verifique o arquivo';
       }
-
-      const datas = Object.keys(porData);
-      const msg = `✅ ${importados} itens importados · ${datas.length} data(s)`;
       showToast(msg);
       if (statusEl) statusEl.textContent = msg;
       updateHomeStats();
-      // Se a data importada for hoje, re-renderiza o checklist
-      if (porData[hoje]) {
-        renderChecklist(currentTurn || '1');
-      }
+      renderChecklist(currentTurn || '1');
     } catch(err) {
       showToast('❌ Erro ao ler planilha: ' + err.message);
       if (statusEl) statusEl.textContent = '❌ Erro: ' + err.message;

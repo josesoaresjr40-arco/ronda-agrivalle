@@ -747,7 +747,7 @@ let CHECKLIST_DATA = {
     nome: "1º Turno",
     conjuntos: [
       { id:"C1", icon:"🖥️", nome:"UTILIDADES", itens:[
-        { id:"1-1.1", comp:"Supervisório principal", ver:"Verificar: alarmes ativos / telas em modo automático / Nível de tanque de água de processo / Tanque de condensado / Pressão de ar comprimido" }
+        { id:"1-1.1", comp:"Supervisório principal", ver:"Verificar: alarmes ativos / telas em modo automático / Nível de tanque de água de processo / Tanque de condensado / Pressão de ar comprimido" },
       ]},
       { id:"C2", icon:"💧", nome:"SUMP'S", itens:[
         { id:"1-2.1", comp:"Tanques Fertilizantes (Time Operações)", ver:"Verificar funcionamento da bomba e nível do Sump" },
@@ -761,19 +761,19 @@ let CHECKLIST_DATA = {
         { id:"1-2.9", comp:"Caldeiras", ver:"Verificar funcionamento da bomba e nível do Sump" },
         { id:"1-2.10", comp:"Recebimento", ver:"Verificar funcionamento da bomba e nível do Sump" },
         { id:"1-2.11", comp:"GEDAV", ver:"Verificar funcionamento da bomba e nível do Sump" },
-        { id:"1-2.12", comp:"Biorreatores", ver:"Verificar funcionamento da bomba e nível do Sump" }
+        { id:"1-2.12", comp:"Biorreatores", ver:"Verificar funcionamento da bomba e nível do Sump" },
       ]},
       { id:"C3", icon:"🔵", nome:"ABRANDADORES", itens:[
         { id:"1-3.1", comp:"Água de processo (abrandada) - Utilidades", ver:"Verificar se o equipamento está ligado, funcionando corretamente." },
         { id:"1-3.2", comp:"Bomba abrandador", ver:"Verificar se há vazamentos na bomba" },
-        { id:"1-3.3", comp:"Tanque de sal", ver:"Verificar nível do tanque de sal (completar) e se existem vazamentos" }
+        { id:"1-3.3", comp:"Tanque de sal", ver:"Verificar nível do tanque de sal (completar) e se existem vazamentos" },
       ]},
       { id:"C4", icon:"❄️", nome:"CÂMARA FRIA", itens:[
         { id:"1-4.1", comp:"Câmara fria 01: Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
-        { id:"1-4.2", comp:"Câmara fria 02: Resfriados", ver:"Verificar se a temperatura está entre 5°C à 10°C" },
-        { id:"1-4.3", comp:"Câmara fria 03 (nova): Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
+        { id:"1-4.2", comp:"Câmara fria 02: Resfriados", ver:"Verificar se a temperatura está entre 5°C à 6°C" },
+        { id:"1-4.3", comp:"Câmara fria 03 (nova): Congelados", ver:"Verificar se a temperatura está entre -5°C à -10°C" },
         { id:"1-4.4", comp:"Câmaras frias: geral", ver:"Verificar se existe algum defeito visível nas condensadoras na parte externa galpão." },
-        { id:"1-4.5", comp:"Câmaras frias: geral (semanal)", ver:"Verificar se todas as máquinas estão ligando a refrigeração, alterando o set point se necessário no controlador", tag:"SEMANAL" }
+        { id:"1-4.5", comp:"Câmaras frias: geral (semanal)", ver:"Verificar se todas as máquinas estão ligando a refrigeração, alterando o set point se necessário no controlador", tag:"SEMANAL" },
       ]},
       { id:"C5", icon:"🧊", nome:"CHILLER", itens:[
         { id:"1-5.1", comp:"Chiller 01 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
@@ -782,28 +782,27 @@ let CHECKLIST_DATA = {
         { id:"1-5.4", comp:"Chiller 02 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
         { id:"1-5.5", comp:"Chiller 02 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
         { id:"1-5.6", comp:"Chiller 02 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
-        { id:"1-5.7", comp:"Tratamento de água (Chiller)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+        { id:"1-5.7", comp:"Tratamento de água (Chiller)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" },
       ]},
       { id:"C6", icon:"🏭", nome:"ETE", itens:[
         { id:"1-6.1", comp:"Caixas da ETE", ver:"Verificar se não há vazamentos" },
         { id:"1-6.2", comp:"Caixas da ETE – Nível", ver:"Verificar nível das caixas e se o alarme está ativado" },
-        { id:"1-6.3", comp:"Filtros gravitacional e de pressão", ver:"Na ausência do operador de ETE, realizar a retrolavagem de 15 a 30 min" }
       ]},
       { id:"C7", icon:"💨", nome:"LAVADORES DE GASES", itens:[
         { id:"1-7.1", comp:"Lavadores de gases Biorreator/Fertilizantes", ver:"Verificar nível de água e vazamentos" },
-        { id:"1-7.2", comp:"Lavador de gases CQ/Incubação", ver:"Verificar nível de água e vazamentos. Obs: Manter sempre ligado devido às salas de Incubação." }
+        { id:"1-7.2", comp:"Lavador de gases CQ/Incubação", ver:"Verificar nível de água e vazamentos. Obs: Manter sempre ligado devido às salas de Incubação." },
       ]},
       { id:"C8", icon:"🔥", nome:"CALDEIRAS", itens:[
         { id:"1-8.1", comp:"Caldeira 1 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
         { id:"1-8.2", comp:"Caldeira 1 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
         { id:"1-8.3", comp:"Caldeira 2 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
         { id:"1-8.4", comp:"Caldeira 2 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
-        { id:"1-8.5", comp:"Tratamento de água (Caldeiras)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+        { id:"1-8.5", comp:"Tratamento de água (Caldeiras)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" },
       ]},
       { id:"C9", icon:"🌬️", nome:"SALA COMPRESSOR", itens:[
         { id:"1-9.1", comp:"Compressor 1: 125 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
         { id:"1-9.2", comp:"Compressor 2: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
-        { id:"1-9.3", comp:"Compressor 3: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" }
+        { id:"1-9.3", comp:"Compressor 3: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
       ]},
       { id:"C10", icon:"🌡️", nome:"SECADORES", itens:[
         { id:"1-10.1", comp:"Secador 1 – Alarmes", ver:"Verificar existência de alarmes ativos" },
@@ -817,12 +816,12 @@ let CHECKLIST_DATA = {
         { id:"1-10.9", comp:"Secador 3 – Alarmes", ver:"Verificar existência de alarmes ativos" },
         { id:"1-10.10", comp:"Secador 3 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
         { id:"1-10.11", comp:"Secador 3 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
-        { id:"1-10.12", comp:"Secador 3 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" }
+        { id:"1-10.12", comp:"Secador 3 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" },
       ]},
       { id:"C11", icon:"🌊", nome:"TORRE DE RESFRIAMENTO", itens:[
         { id:"1-11.1", comp:"Torre de resfriamento – Nível", ver:"Verificar nível de água" },
         { id:"1-11.2", comp:"Torre de resfriamento – Vazamentos", ver:"Verificar se existem vazamentos nas bombas" },
-        { id:"1-11.3", comp:"Tratamento de água (Torre)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+        { id:"1-11.3", comp:"Tratamento de água (Torre)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" },
       ]},
       { id:"C12", icon:"⚗️", nome:"AUTOCLAVES", itens:[
         { id:"1-12.1", comp:"Autoclaves Esterilização – Porta", ver:"Verificar vedação da porta e seu fechamento" },
@@ -831,11 +830,11 @@ let CHECKLIST_DATA = {
         { id:"1-12.4", comp:"Autoclaves CQI – Corrente", ver:"Verificar corrente elétrica das resistências dos que possuem visor instalado. Deve estar entre 35A a 40A." },
         { id:"1-12.5", comp:"Autoclaves CQI – Porta", ver:"Verificar vedação da porta e seu fechamento" },
         { id:"1-12.6", comp:"Autoclaves CQI – Vazamentos", ver:"Verificar vazamentos de água" },
-        { id:"1-12.7", comp:"Autoclaves CQI – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" }
+        { id:"1-12.7", comp:"Autoclaves CQI – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" },
       ]},
       { id:"C13", icon:"🚰", nome:"CAIXA D'ÁGUA", itens:[
         { id:"1-13.1", comp:"Caixa de água 170m³ e 90m³", ver:"Verificar possíveis vazamentos e nível pelo aplicativo de monitoramento" },
-        { id:"1-13.2", comp:"Poço", ver:"Verificar o funcionamento da bomba" }
+        { id:"1-13.2", comp:"Poço", ver:"Verificar o funcionamento da bomba" },
       ]},
       { id:"C14", icon:"🧬", nome:"BIORREATORES", itens:[
         { id:"1-14.1", comp:"Linha 1 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
@@ -849,29 +848,29 @@ let CHECKLIST_DATA = {
         { id:"1-14.9", comp:"Linha 3 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
         { id:"1-14.10", comp:"Linha 3 – Ruídos", ver:"Verificar se existem ruídos anormais" },
         { id:"1-14.11", comp:"Linha 3 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
-        { id:"1-14.12", comp:"Linha 3 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" }
+        { id:"1-14.12", comp:"Linha 3 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" },
       ]},
       { id:"C15", icon:"🌿", nome:"BIODEFENSIVOS", itens:[
-        { id:"1-15.1", comp:"Micronizador", ver:"Verificar o funcionamento do equipamento (Vaccum Receiver, Bag Buster e Moinho) e histórico de alarmes" }
+        { id:"1-15.1", comp:"Micronizador", ver:"Verificar o funcionamento do equipamento (Vaccum Receiver, Bag Buster e Moinho) e histórico de alarmes" },
       ]},
       { id:"C16", icon:"💡", nome:"PCE", itens:[
-        { id:"1-16.1", comp:"Sistema PCE", ver:"Verificar funcionamento dos exaustores e sistema de travamento.", tag:"SEMANAL" }
-      ]}
+        { id:"1-16.1", comp:"Sistema PCE", ver:"Verificar funcionamento dos exaustores e sistema de travamento.", tag:"SEMANAL" },
+      ]},
     ]
   },
   "2": {
-    nome: "Turno Noite",
+    nome: "2º Turno",
     conjuntos: [
-      { id:"D1", icon:"💡", nome:"ILUMINAÇÃO", itens:[
+      { id:"C1", icon:"💡", nome:"ILUMINAÇÃO", itens:[
         { id:"2-1.1", comp:"+AI108", ver:"Chaves seletoras ligadas" },
         { id:"2-1.2", comp:"Painel de iluminação", ver:"Chaves seletoras ligadas" },
         { id:"2-1.3", comp:"Refletores", ver:"Verificar se existe algum queimado" },
-        { id:"2-1.4", comp:"Luminárias internas", ver:"Verificar se existem luminárias apagadas ou com defeito" }
+        { id:"2-1.4", comp:"Luminárias internas", ver:"Verificar se existem luminárias apagadas ou com defeito" },
       ]},
-      { id:"D2", icon:"🖥️", nome:"UTILIDADES", itens:[
-        { id:"2-2.1", comp:"Supervisório principal", ver:"Verificar: alarmes ativos / telas em modo automático / Nível de tanque de água de processo / Tanque de condensado / Pressão de ar comprimido" }
+      { id:"C2", icon:"🖥️", nome:"UTILIDADES", itens:[
+        { id:"2-2.1", comp:"Supervisório principal", ver:"Verificar: alarmes ativos / telas em modo automático / Nível de tanque de água de processo / Tanque de condensado / Pressão de ar comprimido" },
       ]},
-      { id:"D3", icon:"💧", nome:"SUMP'S", itens:[
+      { id:"C3", icon:"💧", nome:"SUMP'S", itens:[
         { id:"2-3.1", comp:"Tanques Fertilizantes (Time Operações)", ver:"Verificar funcionamento da bomba e nível do Sump" },
         { id:"2-3.2", comp:"Tanques Fertilizantes (Saída tanques)", ver:"Verificar funcionamento da bomba e nível do Sump" },
         { id:"2-3.3", comp:"Tanques Fertilizantes (Porta vestiário)", ver:"Verificar funcionamento da bomba e nível do Sump" },
@@ -883,51 +882,50 @@ let CHECKLIST_DATA = {
         { id:"2-3.9", comp:"Caldeiras", ver:"Verificar funcionamento da bomba e nível do Sump" },
         { id:"2-3.10", comp:"Recebimento", ver:"Verificar funcionamento da bomba e nível do Sump" },
         { id:"2-3.11", comp:"GEDAV", ver:"Verificar funcionamento da bomba e nível do Sump" },
-        { id:"2-3.12", comp:"Biorreatores", ver:"Verificar funcionamento da bomba e nível do Sump" }
+        { id:"2-3.12", comp:"Biorreatores", ver:"Verificar funcionamento da bomba e nível do Sump" },
       ]},
-      { id:"D4", icon:"🔵", nome:"ABRANDADORES", itens:[
+      { id:"C4", icon:"🔵", nome:"ABRANDADORES", itens:[
         { id:"2-4.1", comp:"Água de processo (abrandada) - Utilidades", ver:"Verificar se o equipamento está ligado, funcionando corretamente." },
         { id:"2-4.2", comp:"Bomba abrandador", ver:"Verificar se há vazamentos na bomba" },
-        { id:"2-4.3", comp:"Tanque de sal", ver:"Verificar nível do tanque de sal (completar) e se existem vazamentos" }
+        { id:"2-4.3", comp:"Tanque de sal", ver:"Verificar nível do tanque de sal (completar) e se existem vazamentos" },
       ]},
-      { id:"D5", icon:"❄️", nome:"CÂMARA FRIA", itens:[
+      { id:"C5", icon:"❄️", nome:"CÂMARA FRIA", itens:[
         { id:"2-5.1", comp:"Câmara fria 01: Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
-        { id:"2-5.2", comp:"Câmara fria 02: Resfriados", ver:"Verificar se a temperatura está entre 5°C à 10°C" },
-        { id:"2-5.3", comp:"Câmara fria 03 (nova): Congelados", ver:"Verificar se a temperatura está entre -7°C à 0°C" },
+        { id:"2-5.2", comp:"Câmara fria 02: Resfriados", ver:"Verificar se a temperatura está entre 5°C à 6°C" },
+        { id:"2-5.3", comp:"Câmara fria 03 (nova): Congelados", ver:"Verificar se a temperatura está entre -5°C à -10°C" },
         { id:"2-5.4", comp:"Câmaras frias: geral", ver:"Verificar se existe algum defeito visível nas condensadoras na parte externa galpão." },
-        { id:"2-5.5", comp:"Câmaras frias: geral (semanal)", ver:"Verificar se todas as máquinas estão ligando a refrigeração, alterando o set point se necessário no controlador", tag:"SEMANAL" }
+        { id:"2-5.5", comp:"Câmaras frias: geral (semanal)", ver:"Verificar se todas as máquinas estão ligando a refrigeração, alterando o set point se necessário no controlador", tag:"SEMANAL" },
       ]},
-      { id:"D6", icon:"🧊", nome:"CHILLER", itens:[
+      { id:"C6", icon:"🧊", nome:"CHILLER", itens:[
         { id:"2-6.1", comp:"Chiller 01 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
         { id:"2-6.2", comp:"Chiller 01 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
         { id:"2-6.3", comp:"Chiller 01 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
         { id:"2-6.4", comp:"Chiller 02 – Alarmes", ver:"Verificar existências de alarmes ativos. Se sim, verificar a estação com alarme. Ex: ID4." },
         { id:"2-6.5", comp:"Chiller 02 – Ruídos/Vazamentos", ver:"Verificar ruídos e vazamentos" },
         { id:"2-6.6", comp:"Chiller 02 – Temperatura", ver:"Verificar se temperatura está próxima ao Set Point (± 10°C)" },
-        { id:"2-6.7", comp:"Tratamento de água (Chiller)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+        { id:"2-6.7", comp:"Tratamento de água (Chiller)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" },
       ]},
-      { id:"D7", icon:"🏭", nome:"ETE", itens:[
+      { id:"C7", icon:"🏭", nome:"ETE", itens:[
         { id:"2-7.1", comp:"Caixas da ETE", ver:"Verificar se não há vazamentos" },
         { id:"2-7.2", comp:"Caixas da ETE – Nível", ver:"Verificar nível das caixas e se o alarme está ativado" },
-        { id:"2-7.3", comp:"Filtros gravitacional e de pressão", ver:"Na ausência do operador de ETE, realizar a retrolavagem de 15 a 30 min" }
       ]},
-      { id:"D8", icon:"💨", nome:"LAVADORES DE GASES", itens:[
+      { id:"C8", icon:"💨", nome:"LAVADORES DE GASES", itens:[
         { id:"2-8.1", comp:"Lavadores de gases Biorreator/Fertilizantes", ver:"Verificar nível de água e vazamentos" },
-        { id:"2-8.2", comp:"Lavador de gases CQ/Incubação", ver:"Verificar nível de água e vazamentos. Obs: Manter sempre ligado devido às salas de Incubação." }
+        { id:"2-8.2", comp:"Lavador de gases CQ/Incubação", ver:"Verificar nível de água e vazamentos. Obs: Manter sempre ligado devido às salas de Incubação." },
       ]},
-      { id:"D9", icon:"🔥", nome:"CALDEIRAS", itens:[
+      { id:"C9", icon:"🔥", nome:"CALDEIRAS", itens:[
         { id:"2-9.1", comp:"Caldeira 1 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
         { id:"2-9.2", comp:"Caldeira 1 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
         { id:"2-9.3", comp:"Caldeira 2 – Funcionamento", ver:"Verificar nível de água / situação das bombas / alarmes ativos e funcionamento em geral" },
         { id:"2-9.4", comp:"Caldeira 2 – Teste bombas", ver:"Realizar o teste manual / automático das duas bombas e válvulas de purga" },
-        { id:"2-9.5", comp:"Tratamento de água (Caldeiras)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+        { id:"2-9.5", comp:"Tratamento de água (Caldeiras)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" },
       ]},
-      { id:"D10", icon:"🌬️", nome:"SALA COMPRESSOR", itens:[
+      { id:"C10", icon:"🌬️", nome:"SALA COMPRESSOR", itens:[
         { id:"2-10.1", comp:"Compressor 1: 125 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
         { id:"2-10.2", comp:"Compressor 2: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
-        { id:"2-10.3", comp:"Compressor 3: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" }
+        { id:"2-10.3", comp:"Compressor 3: 40 HP", ver:"Verificar vazamentos de ar comprimido/óleo e alarmes ativos. Ponto de Orvalho até 10°C" },
       ]},
-      { id:"D11", icon:"🌡️", nome:"SECADORES", itens:[
+      { id:"C11", icon:"🌡️", nome:"SECADORES", itens:[
         { id:"2-11.1", comp:"Secador 1 – Alarmes", ver:"Verificar existência de alarmes ativos" },
         { id:"2-11.2", comp:"Secador 1 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
         { id:"2-11.3", comp:"Secador 1 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
@@ -939,27 +937,27 @@ let CHECKLIST_DATA = {
         { id:"2-11.9", comp:"Secador 3 – Alarmes", ver:"Verificar existência de alarmes ativos" },
         { id:"2-11.10", comp:"Secador 3 – Temp. Reativação", ver:"Verificar se Temperatura de Reativação está entre 50 a 75°C" },
         { id:"2-11.11", comp:"Secador 3 – Temp. Resistência", ver:"Verificar se Temperatura após resistência de Reativação está entre 130 a 160°C" },
-        { id:"2-11.12", comp:"Secador 3 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" }
+        { id:"2-11.12", comp:"Secador 3 – Temp. Sala", ver:"Verificar FISICAMENTE se temperatura das salas está entre 35 a 41°C" },
       ]},
-      { id:"D12", icon:"🌊", nome:"TORRE DE RESFRIAMENTO", itens:[
+      { id:"C12", icon:"🌊", nome:"TORRE DE RESFRIAMENTO", itens:[
         { id:"2-12.1", comp:"Torre de resfriamento – Nível", ver:"Verificar nível de água" },
         { id:"2-12.2", comp:"Torre de resfriamento – Vazamentos", ver:"Verificar se existem vazamentos nas bombas" },
-        { id:"2-12.3", comp:"Tratamento de água (Torre)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" }
+        { id:"2-12.3", comp:"Tratamento de água (Torre)", ver:"Verificar níveis da solução Multiágua e se o sistema está ligado e funcionando corretamente" },
       ]},
-      { id:"D13", icon:"⚗️", nome:"AUTOCLAVES", itens:[
+      { id:"C13", icon:"⚗️", nome:"AUTOCLAVES", itens:[
         { id:"2-13.1", comp:"Autoclaves Esterilização – Porta", ver:"Verificar vedação da porta e seu fechamento" },
         { id:"2-13.2", comp:"Autoclaves Esterilização – Vazamentos", ver:"Verificar vazamentos de água" },
         { id:"2-13.3", comp:"Autoclaves Esterilização – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" },
         { id:"2-13.4", comp:"Autoclaves CQI – Corrente", ver:"Verificar corrente elétrica das resistências dos que possuem visor instalado. Deve estar entre 35A a 40A." },
         { id:"2-13.5", comp:"Autoclaves CQI – Porta", ver:"Verificar vedação da porta e seu fechamento" },
         { id:"2-13.6", comp:"Autoclaves CQI – Vazamentos", ver:"Verificar vazamentos de água" },
-        { id:"2-13.7", comp:"Autoclaves CQI – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" }
+        { id:"2-13.7", comp:"Autoclaves CQI – Operador", ver:"Perguntar para operador se não há alarmes ou falhas" },
       ]},
-      { id:"D14", icon:"🚰", nome:"CAIXA D'ÁGUA", itens:[
+      { id:"C14", icon:"🚰", nome:"CAIXA D'ÁGUA", itens:[
         { id:"2-14.1", comp:"Caixa de água 170m³ e 90m³", ver:"Verificar possíveis vazamentos e nível pelo aplicativo de monitoramento" },
-        { id:"2-14.2", comp:"Poço", ver:"Verificar o funcionamento da bomba" }
+        { id:"2-14.2", comp:"Poço", ver:"Verificar o funcionamento da bomba" },
       ]},
-      { id:"D15", icon:"🧬", nome:"BIORREATORES", itens:[
+      { id:"C15", icon:"🧬", nome:"BIORREATORES", itens:[
         { id:"2-15.1", comp:"Linha 1 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
         { id:"2-15.2", comp:"Linha 1 – Ruídos", ver:"Verificar se existem ruídos anormais" },
         { id:"2-15.3", comp:"Linha 1 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
@@ -971,14 +969,14 @@ let CHECKLIST_DATA = {
         { id:"2-15.9", comp:"Linha 3 – Vazamentos", ver:"Verificar vazamentos de ar comprimido, água e vapor." },
         { id:"2-15.10", comp:"Linha 3 – Ruídos", ver:"Verificar se existem ruídos anormais" },
         { id:"2-15.11", comp:"Linha 3 – Falhas", ver:"Verificar se existem falhas e perguntar aos operadores sobre ocorrências recentes" },
-        { id:"2-15.12", comp:"Linha 3 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" }
+        { id:"2-15.12", comp:"Linha 3 – Pressão", ver:"Verificar pressão: Vapor 2 bar / Água gelada 1,5 bar / Água abrandada 1,5 bar" },
       ]},
-      { id:"D16", icon:"🌿", nome:"BIODEFENSIVOS", itens:[
-        { id:"2-16.1", comp:"Micronizador", ver:"Verificar o funcionamento do equipamento (Vaccum Receiver, Bag Buster e Moinho) e histórico de alarmes" }
+      { id:"C16", icon:"🌿", nome:"BIODEFENSIVOS", itens:[
+        { id:"2-16.1", comp:"Micronizador", ver:"Verificar o funcionamento do equipamento (Vaccum Receiver, Bag Buster e Moinho) e histórico de alarmes" },
       ]},
-      { id:"D17", icon:"💡", nome:"PCE", itens:[
-        { id:"2-17.1", comp:"Sistema PCE", ver:"Verificar funcionamento dos exaustores e sistema de travamento.", tag:"SEMANAL" }
-      ]}
+      { id:"C17", icon:"💡", nome:"PCE", itens:[
+        { id:"2-17.1", comp:"Sistema PCE", ver:"Verificar funcionamento dos exaustores e sistema de travamento.", tag:"SEMANAL" },
+      ]},
     ]
   }
 };
